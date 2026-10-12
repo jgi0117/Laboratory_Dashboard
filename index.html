@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>실험실 프로젝트 관리 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 왼쪽 프로젝트 목록 | 오른쪽은 위의 어두운 '현황 패널'(프로젝트 공통)과 아래의 밝은 '작업 시트'(고른 단계) */
+:root{
+  --bg:#e9edf0; --surface:#ffffff; --sunk:#f2f5f7;
+  --ink:#10202b; --ink2:#3a4b59; --mute:#667785;
+  --line:#dce3e8; --line2:#c3cdd5;
+  --accent:#0a6a88; --accent-ink:#ffffff; --accent-soft:#dcf0f6;
+  --ok:#17794a; --ok-soft:#dcf1e6; --warn:#a15c00; --warn-soft:#fbebd0; --bad:#b4302a; --bad-soft:#f9dfdc;
+  --panel:#0f2230; --panel-ink:#e9f2f7; --panel-mute:#8ea6b5; --panel-line:#2a4354; --panel-sunk:rgba(255,255,255,.07);
+  --pa:#5fcde9; --pok:#5bd694; --pbad:#ff938a;
+  --shadow:0 1px 2px rgba(15,34,48,.08),0 6px 18px rgba(15,34,48,.07);
+  --font:"IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b1218; --surface:#121c25; --sunk:#18242e;
+  --ink:#e6eef4; --ink2:#b8c7d3; --mute:#8497a6;
+  --line:#243441; --line2:#34475a;
+  --accent:#5fcde9; --accent-ink:#04222b; --accent-soft:#12323d;
+  --ok:#55d08e; --ok-soft:#133323; --warn:#e8ac4a; --warn-soft:#38290f; --bad:#f58b82; --bad-soft:#3b1c19;
+  --panel:#18303f; --panel-line:#355468; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1218; --surface:#121c25; --sunk:#18242e;
+  --ink:#e6eef4; --ink2:#b8c7d3; --mute:#8497a6;
+  --line:#243441; --line2:#34475a;
+  --accent:#5fcde9; --accent-ink:#04222b; --accent-soft:#12323d;
+  --ok:#55d08e; --ok-soft:#133323; --warn:#e8ac4a; --warn-soft:#38290f; --bad:#f58b82; --bad-soft:#3b1c19;
+  --panel:#18303f; --panel-line:#355468; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+html{font-size:15px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased}
+.app{max-width:1280px;margin:0 auto;padding-block:22px 72px;padding-inline:16px}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;margin-bottom:18px}
+h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em}
+.sub{margin:2px 0 0;font-size:13px;color:var(--mute)}
+.links{font-size:13px;color:var(--mute)}
+.links a{color:var(--accent);font-weight:600;margin-left:8px;text-decoration:none;border-bottom:1px solid transparent}
+.links a:hover{border-bottom-color:var(--accent)}
+.layout{display:grid;grid-template-columns:268px minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- 컨트롤 ---------- */
+input[type=text],input[type=number],input[type=date],textarea,select{font:inherit;font-size:14px;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:7px;padding:6px 9px;width:100%;min-width:0}
+textarea{min-height:66px;resize:vertical;line-height:1.5}
+select option{background:var(--surface);color:var(--ink)}
+input[type=date]{color-scheme:light dark}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;font-size:13.5px;font-weight:600;line-height:1.3;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--line2);background:var(--surface);color:var(--ink)}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.p:hover{filter:brightness(1.08);color:var(--accent-ink)}
+button.d{color:var(--mute);font-weight:500}
+button.x{padding:2px 8px;color:var(--mute);font-weight:500;background:transparent}
+button.x:hover{color:var(--bad);border-color:var(--bad)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.small{font-size:12.5px;color:var(--mute)}
+.empty{color:var(--mute);padding:28px 16px;text-align:center;border:1px dashed var(--line2);border-radius:12px;font-size:14px}
+.modal{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgba(8,18,26,.55)}
+.mbox{width:min(440px,100%);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.mbox h3{margin:0 0 6px;font-size:17px}
+.mbox p{margin:0 0 12px;color:var(--ink2);font-size:14px}
+button.dng{background:var(--bad);border-color:var(--bad);color:#fff}
+button.dng:hover{filter:brightness(1.08);color:#fff}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:9px;font-size:14px;z-index:20;box-shadow:var(--shadow)}
+
+/* ---------- 왼쪽: 프로젝트 목록 ---------- */
+.rail{display:flex;flex-direction:column;gap:10px;position:sticky;top:16px;min-width:0}
+@media(max-width:900px){.rail{position:static}}
+.rail-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rail-h span{font-size:12px;font-weight:600;color:var(--mute);letter-spacing:.06em}
+.plist{display:flex;flex-direction:column;gap:6px}
+@media(max-width:900px){.plist{flex-direction:row;overflow-x:auto;padding-bottom:6px}.pitem{min-width:250px;flex:none}}
+.pitem{display:block;width:100%;text-align:left;font-weight:400;padding:11px 12px;border:1px solid transparent;background:transparent;border-radius:11px;color:var(--ink)}
+.pitem:hover{background:var(--surface);border-color:var(--line);color:var(--ink)}
+.pitem.on{background:var(--surface);border-color:var(--accent);box-shadow:var(--shadow)}
+.pn{font-weight:600;font-size:14px;line-height:1.35;margin-bottom:8px}
+.pbar{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;margin-bottom:7px}
+.pbar i{height:5px;border-radius:2px;background:var(--line2)}
+.pbar i.d{background:var(--ok)}.pbar i.c{background:var(--accent)}
+.pmeta{display:flex;flex-wrap:wrap;gap:1px 10px;font-size:12px;color:var(--mute)}
+.pmeta .bad{color:var(--bad);font-weight:600}.pmeta .stale{color:var(--warn);font-weight:600}.pmeta .cur{color:var(--accent);font-weight:600}
+
+/* ---------- 오른쪽 위: 현황 패널 (프로젝트 공통) ---------- */
+.head{background:var(--panel);color:var(--panel-ink);border-radius:16px;padding:20px 22px 18px;box-shadow:var(--shadow)}
+.head-top{display:flex;gap:10px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.head input.name{flex:1 1 280px;width:auto;font-weight:700;font-size:23px;line-height:1.3;letter-spacing:-.01em;color:var(--panel-ink);background:transparent;border:0;border-bottom:1px solid transparent;border-radius:0;padding:2px 0}
+.head input.name:hover,.head input.name:focus{border-bottom-color:var(--panel-line);outline:0}
+.head input.name:focus-visible{border-bottom-color:var(--pa)}
+.head input.name::placeholder{color:var(--panel-mute)}
+.head button.pb{background:transparent;color:var(--panel-ink);border-color:var(--panel-line);font-weight:500}
+.head button.pb:hover{border-color:var(--pa);color:var(--pa)}
+.line{overflow-x:auto;margin:18px -8px 0;padding:0 8px 6px}
+.lgrid{display:grid;grid-template-columns:repeat(12,minmax(64px,1fr));min-width:780px}
+.lg-h{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--panel-mute);padding:0 8px 7px;position:relative;margin-bottom:4px}
+.lg-h::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:5px;border:1px solid var(--panel-line);border-bottom:0;border-radius:5px 5px 0 0}
+.node{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px 6px;background:transparent;border:0;border-radius:11px;color:var(--panel-mute);font-weight:600}
+.node:hover{background:var(--panel-sunk);color:var(--panel-ink)}
+.node.view{background:var(--panel-sunk)}
+.node::before{content:"";position:absolute;top:21px;left:0;right:0;height:2px;background:var(--panel-line)}
+.node.first::before{left:50%}.node.last::before{right:50%}
+.node.done::before{background:var(--pok)}
+.node.cur::before{background:linear-gradient(90deg,var(--pok) 50%,var(--panel-line) 50%)}
+.nd{position:relative;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--panel);border:2px solid var(--panel-line);font:600 12px var(--mono);color:var(--panel-mute)}
+.node.done .nd{background:var(--pok);border-color:var(--pok);color:#062611}
+.node.cur .nd{background:var(--pa);border-color:var(--pa);color:#052630;box-shadow:0 0 0 4px rgba(95,205,233,.28)}
+.nl{font-size:12.5px;line-height:1.25;text-align:center}
+.node.done .nl{color:var(--panel-ink)}.node.cur .nl{color:var(--pa)}
+.node.view .nl{color:#fff;text-decoration:underline;text-decoration-color:var(--pa);text-decoration-thickness:2px;text-underline-offset:5px}
+.nbs{display:flex;gap:3px;min-height:15px}
+.nb{font-size:10px;font-weight:600;line-height:1;padding:3px 5px;border-radius:4px;background:var(--panel-sunk);color:var(--panel-mute)}
+.nb.prev{background:rgba(232,172,74,.18);color:#e8ac4a}
+.nb.now{background:var(--pa);color:#052630}.nb.bad{background:rgba(255,147,138,.2);color:var(--pbad)}
+.strip{display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;margin-top:12px;padding-top:16px;border-top:1px solid var(--panel-line)}
+.kpi{display:flex;align-items:center;gap:9px}
+.kpi .k{font-size:11.5px;letter-spacing:.05em;color:var(--panel-mute)}
+.kpi b{font-weight:600;font-size:17px;font-variant-numeric:tabular-nums}
+.pips{display:flex;gap:5px}
+.pip{width:18px;height:18px;border-radius:50%;border:2px solid var(--panel-line)}
+.pip.on{background:var(--pok);border-color:var(--pok)}
+.acts-main{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.head button.pass{background:var(--pok);border-color:var(--pok);color:#062611}
+.head button.pass:hover{filter:brightness(1.08);color:#062611}
+.head button.failb{background:transparent;border-color:var(--pbad);color:var(--pbad)}
+.head button.failb:hover{background:rgba(255,147,138,.12);color:var(--pbad)}
+.banner-p{margin-top:14px;padding:10px 14px;border-radius:10px;background:rgba(91,214,148,.16);color:var(--pok);font-weight:600}
+.memo{margin-top:16px}
+.memo label{display:block;font-size:11.5px;letter-spacing:.05em;color:var(--panel-mute);margin-bottom:6px}
+.memo textarea{background:var(--panel-sunk);border-color:var(--panel-line);color:var(--panel-ink)}
+.head details{margin-top:12px}
+.head summary{color:var(--panel-mute);font-weight:500}
+.head .log{margin-top:4px}
+.head .log div{padding:5px 0;border-bottom:1px solid var(--panel-line);font-size:13.5px}
+.head .log .small{color:var(--panel-mute);font-family:var(--mono);margin-right:8px}
+
+/* ---------- 오른쪽 아래: 작업 시트 (고른 단계) ---------- */
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-top:18px}
+.sheet-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 16px;padding:18px 22px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.07em;color:var(--mute);margin-bottom:2px}
+.sheet-h h2{margin:0;font-size:20px;letter-spacing:-.01em;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.sheet-b{padding:6px 22px 24px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;color:var(--ink2);font-weight:500;padding:5px 12px;font-size:13px}
+.seg button+button{border-left:1px solid var(--line2)}
+.seg button.on{background:var(--ink);color:var(--surface)}
+.tag{display:inline-block;font-size:12px;font-weight:600;border-radius:99px;padding:1px 10px;background:var(--sunk);color:var(--ink2);border:1px solid var(--line)}
+.tag.now{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.tag.miss{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+.tag.good{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+label.l{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;color:var(--mute);margin:16px 0 6px}
+.tbl h4{display:flex;align-items:center;gap:12px;margin:26px 0 10px;font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--mute)}
+.tbl h4::after{content:"";flex:1;height:1px;background:var(--line)}
+.tbl h4 .small{letter-spacing:0;font-weight:400}
+.tr{display:grid;gap:5px;margin-bottom:5px;align-items:center}
+.tr.recipe{grid-template-columns:2fr 1fr 80px 2fr 30px}
+.tr.evals{grid-template-columns:2fr 1fr 1fr 70px 92px 2fr 30px}
+.tr.layer{grid-template-columns:24px 1.3fr 2fr 70px 60px 1.4fr 30px}
+.tr.hd{font-size:11.5px;font-weight:600;color:var(--mute);letter-spacing:.04em}
+@media(max-width:760px){.tr.recipe{grid-template-columns:1fr 1fr 1fr 30px}.tr.evals{grid-template-columns:1fr 1fr 1fr 1fr 30px}.tr.layer{grid-template-columns:24px 1fr 1fr 30px}.tr.hd{display:none}}
+.res-Pass{color:var(--ok);font-weight:600}.res-Fail{color:var(--bad);font-weight:600}
+details.fold{margin-top:18px;border-top:1px solid var(--line)}
+summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:12px 0;font-weight:600;font-size:14px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"›";width:12px;font-size:17px;line-height:1;color:var(--mute);transition:transform .12s}
+details[open]>summary::before{transform:rotate(90deg)}
+details.fold>summary .small{font-weight:400}
+
+/* 표 */
+.xwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.xt{border-collapse:separate;border-spacing:0;font-size:13px;width:max-content;min-width:100%}
+.xt th,.xt td{padding:4px 5px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+.xt tbody tr:last-child td{border-bottom:0}
+.xt thead th{background:var(--sunk);color:var(--mute);font-size:11.5px;font-weight:600;vertical-align:bottom}
+.xt th.gx{background:var(--accent-soft);color:var(--accent);text-align:center;letter-spacing:.04em}
+.xt th.gy{background:var(--ok-soft);color:var(--ok);text-align:center;letter-spacing:.04em}
+.xt input{background:transparent;border-color:transparent;padding:4px 6px}
+.xt input:hover{border-color:var(--line2)}.xt input:focus{background:var(--surface)}
+.xt input[type=text]{width:92px;font-family:var(--mono);font-size:12.5px}
+.xt thead input[type=text]{font-family:var(--font);font-weight:600;color:var(--ink)}
+.xt td:nth-child(4) input{width:150px;font-family:var(--font)}
+.xt input[type=date]{width:124px;font-family:var(--mono);font-size:12px}
+.xt .nw{white-space:nowrap}
+.xt.cmp th,.xt.cmp td{padding:8px 12px;white-space:nowrap}
+.xt.cmp td{font-variant-numeric:tabular-nums}
+button.star{padding:1px 7px;font-size:15px;background:transparent;color:var(--mute);font-weight:400}
+button.star.on{color:var(--warn);border-color:var(--warn);font-weight:700}
+
+/* 제품 구조 그림 · 최종 recipe */
+.ldwrap{background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:6px 10px}
+svg.ld{width:100%;max-width:640px;height:auto;display:block;margin:0 auto}
+svg.ld text{fill:var(--ink);font-family:var(--font);font-size:12px}
+svg.ld .ln{font-weight:700}
+svg.ld .lm,svg.ld .cap{fill:var(--mute);font-size:10.5px}
+svg.ld .lt{font-weight:600;font-size:12px;font-family:var(--mono)}
+svg.ld .lay{stroke:rgba(0,0,0,.28);stroke-width:1}
+.fin{margin-top:20px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.finh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;padding:11px 16px;background:var(--sunk);border-bottom:1px solid var(--line);font-size:14px}
+.fcols{display:grid;grid-template-columns:1fr 1fr}
+.fcols>div{padding:12px 16px 8px}
+.fcols>div+div{border-left:1px solid var(--line)}
+@media(max-width:720px){.fcols{grid-template-columns:1fr}.fcols>div+div{border-left:0;border-top:1px solid var(--line)}}
+.fin h5{margin:0 0 4px;font-size:11px;font-weight:600;letter-spacing:.07em;color:var(--mute)}
+.kvs{display:flex;flex-direction:column}
+.kv{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px dotted var(--line2);font-size:14px}
+.kv:last-child{border-bottom:0}
+.kv span{color:var(--ink2)}
+.kv b{font:600 14px var(--mono);text-align:right}
+.kv small{font:400 12px var(--font);color:var(--mute)}
+.empty-fin{padding:14px 16px;border-style:dashed}
+
+/* ---------- 설계 vs Trial 성능 비교 (단계와 무관한 별도 섹션) ---------- */
+.cmpbox{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.cmpbox>summary{padding:16px 22px;gap:6px 12px}
+.cmpbox[open]>summary{border-bottom:1px solid var(--line)}
+.cmpbox>.dbody{padding:14px 22px 22px}
+.cmp-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin-bottom:10px}
+.cmp-h h3{margin:0;font-size:15px}
+.tolrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:13.5px}
+.tolrow label{font-weight:600}
+.tolrow input{width:76px;font-family:var(--mono)}
+.banner{border-radius:10px;padding:10px 14px;margin:12px 0;font-weight:600;background:var(--ok-soft);color:var(--ok)}
+.banner.soft{background:var(--warn-soft);color:var(--warn)}
+.vtag{display:inline-block;font-size:12px;font-weight:600;border-radius:99px;padding:1px 10px}
+.vok{background:var(--ok-soft);color:var(--ok)}.vwarn{background:var(--warn-soft);color:var(--warn)}.vbad{background:var(--bad-soft);color:var(--bad)}.vnone{background:var(--sunk);color:var(--mute)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--mute);margin:14px 0 6px}
+.legend .lg{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px;border-radius:50%}
+.legend .lg.dia{background:var(--accent);border-radius:2px;transform:rotate(45deg) scale(.85)}
+.legend .lg.band{background:var(--accent-soft);border:1px solid var(--accent);border-radius:2px;width:14px}
+.legend .lg.pp{background:var(--ok)}.legend .lg.pf{background:var(--bad)}.legend .lg.pn{background:var(--mute)}
+.legend .lg.old{background:var(--mute);opacity:.35}
+.legend .lg.spec{background:none;border-top:2px dotted var(--bad);border-radius:0;height:0;width:14px;vertical-align:3px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:14px;margin-top:8px}
+.chcard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.chh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:2px}
+svg.ch{width:100%;height:auto;display:block}
+svg.ch text{fill:var(--mute);font-size:10px;font-family:var(--mono)}
+svg.ch text.val{fill:var(--ink);font-size:10.5px;font-weight:600}
+svg.ch text.old{opacity:.5}
+svg.ch text.spect{fill:var(--bad);font-family:var(--font)}
+svg.ch text.bandt{fill:var(--accent);font-family:var(--font)}
+svg.ch .grid{stroke:var(--line);stroke-width:1}
+svg.ch .band{fill:var(--accent);opacity:.12}
+svg.ch .ref{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:5 3}
+svg.ch .spec{stroke:var(--bad);stroke-width:1.2;stroke-dasharray:2 3}
+svg.ch .trend{fill:none;stroke:var(--mute);stroke-width:1.2;opacity:.6}
+svg.ch .dia{fill:var(--accent)}
+svg.ch .pt{stroke:var(--surface);stroke-width:1.5}
+svg.ch .pt.pp{fill:var(--ok)}svg.ch .pt.pf{fill:var(--bad)}svg.ch .pt.pn{fill:var(--mute)}
+svg.ch .pt.old{opacity:.4}
+
+.foot{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-top:26px;padding-top:16px;border-top:1px dashed var(--line2);font-size:13px;color:var(--mute)}
+.foot select{width:auto}
+/* 규격 · 자동 판정 */
+.tr.spec{grid-template-columns:2fr 1.6fr 90px 30px}
+@media(max-width:760px){.tr.spec{grid-template-columns:1fr 1fr 30px}}
+input.invalid{border-color:var(--bad);background:var(--bad-soft)}
+.spc{display:flex;align-items:center;padding:6px 9px;border-radius:7px;background:var(--sunk);border:1px dashed var(--line2);font:500 13.5px var(--mono);color:var(--ink2);min-height:34px}
+.jd{display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border-radius:7px;min-height:34px;padding:0 8px}
+.j-Pass{background:var(--ok-soft);color:var(--ok)}.j-Fail{background:var(--bad-soft);color:var(--bad)}.j-none{background:var(--sunk);color:var(--mute);font-weight:500}
+
+/* 데이터 점검 · 전체 보기 */
+.expbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--sunk)}
+.xwrap.tall{max-height:72vh;overflow:auto}
+.xwrap.tall thead{position:sticky;top:0;z-index:3}
+.xwrap.tall .dtab thead th,.xwrap.tall .dtab thead td{background:var(--sunk)}
+.xwrap.tall .dtab thead th.gx{background:var(--accent-soft)}.xwrap.tall .dtab thead th.gy{background:var(--ok-soft)}
+.qlist{display:flex;flex-direction:column;gap:10px}
+.qi{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface)}
+.qi.q-out,.qi.q-nonnum{border-color:var(--bad)}
+.qi.q-miss{border-color:var(--warn)}
+.qi-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.qtag{font-size:12px;font-weight:700;border-radius:6px;padding:1px 8px}
+.qtag.q-out,.qtag.q-nonnum{background:var(--bad-soft);color:var(--bad)}.qtag.q-miss{background:var(--warn-soft);color:var(--warn)}
+.qv{font:700 18px var(--mono)}
+.qloc{margin-left:auto;font-size:12.5px;color:var(--mute)}
+.qi-b{margin:8px 0}
+.qcs{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.qc{font:500 12.5px var(--mono);background:var(--sunk);border-radius:6px;padding:2px 8px}
+.qc i{font:400 11px var(--font);color:var(--mute);margin-right:5px;font-style:normal}
+.qc small{color:var(--mute);margin-left:2px}
+.qref{margin-top:8px;font-size:13px;color:var(--ink2)}
+.qi-a{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding-top:10px;border-top:1px dashed var(--line2)}
+.qfix{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.qfix input{width:120px;font-family:var(--mono)}
+.qbtns{display:flex;flex-wrap:wrap;gap:6px}
+button.dng-o{border-color:var(--bad);color:var(--bad)}
+button.dng-o:hover{background:var(--bad-soft);color:var(--bad)}
+.plist2{margin-top:6px}
+.prow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+
+/* 실험 데이터: 쪽 나누기 · 분포 */
+.pager{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-top:12px}
+.pg{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.pg button{min-width:34px;padding:5px 10px}
+.pg button:disabled{opacity:.4;cursor:not-allowed}
+.pgb.on{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.pgd{padding:0 4px;color:var(--mute)}
+.dtab td.miss{color:var(--warn);text-align:center;background:repeating-linear-gradient(135deg,transparent 0 5px,var(--warn-soft) 5px 7px)}
+.dtab td.o{background:var(--bad-soft);color:var(--bad);font-weight:700}
+.dtab td.nn{background:var(--bad-soft);color:var(--bad);font-style:italic}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:12px;margin-top:12px}
+.dcard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.dcard.iss{border-color:var(--warn)}
+.dc-h{display:flex;align-items:baseline;gap:6px}
+.dc-h b{font-size:14px}.dc-h small{color:var(--mute)}
+.dc-g{margin-left:auto;font-size:11px;font-weight:600;color:var(--mute);letter-spacing:.05em}
+.dc-t{display:flex;flex-wrap:wrap;gap:4px;min-height:22px}
+.dc-s{line-height:1.5}
+svg.hs{width:100%;height:auto;display:block}
+svg.hs text{fill:var(--mute);font-size:10px;font-family:var(--mono)}
+svg.hs text.md{fill:var(--ink2)}
+svg.hs .hb{fill:var(--accent);opacity:.75}
+svg.hs .ho{fill:var(--bad)}
+svg.hs .ax{stroke:var(--line2);stroke-width:1}
+svg.hs .wk{stroke:var(--mute);stroke-width:1.5}
+svg.hs .bx{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.5}
+svg.hs .mdl{stroke:var(--ink);stroke-width:2}
+svg.hs .od{fill:var(--bad);stroke:var(--surface);stroke-width:1.5}
+
+/* ---------- R/A: Risk 관리 ---------- */
+.ra{margin-top:8px}
+.gate{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--sunk)}
+.gate.warn{border-color:var(--bad);background:var(--bad-soft)}
+.gate.go{border-color:var(--ok);background:var(--ok-soft)}
+.gate-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;margin-bottom:8px}
+.gate-sum{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.gate-sum .sep{width:1px;height:16px;background:var(--line2);margin:0 4px}
+.gate-msg{margin:8px 0 12px;font-weight:600;font-size:14px}
+.gate-msg.bad{color:var(--bad)}
+.gate-form{display:grid;grid-template-columns:minmax(130px,.7fr) minmax(130px,.7fr) minmax(160px,1.4fr);gap:8px 12px}
+.gate-form label{display:block;font-size:12px;font-weight:600;color:var(--mute)}
+.gate-form label.wide{grid-column:1/-1}
+.gate-form select,.gate-form input,.gate-form textarea{margin-top:4px;background:var(--surface)}
+@media(max-width:700px){.gate-form{grid-template-columns:1fr}}
+.lv{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:1px 10px;white-space:nowrap}
+.lv-hi{background:var(--bad-soft);color:var(--bad)}.lv-mid{background:var(--warn-soft);color:var(--warn)}.lv-lo{background:var(--ok-soft);color:var(--ok)}.lv-none{background:var(--sunk);color:var(--mute)}
+.lvp{font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;background:rgba(255,147,138,.2);color:var(--pbad)}
+.risk{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface)}
+.risk.hi.st-open{border-color:var(--bad)}
+.risk.st-done{background:var(--sunk)}
+.rk-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.rk-n{font:600 12px var(--mono);color:var(--mute);width:18px}
+.rk-t{font-weight:600;font-size:15px}
+.rk-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px 10px;margin-bottom:8px}
+.rk-meta label,.rk-body label{display:block;font-size:11.5px;font-weight:600;color:var(--mute);letter-spacing:.03em}
+.rk-meta select,.rk-meta input,.rk-body textarea{margin-top:3px}
+.rk-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px}
+.rk-body textarea{min-height:62px}
+.rk-from{margin-top:8px;font-size:12px;color:var(--mute)}
+.stp{display:inline-block;font-size:12px;font-weight:600;border-radius:6px;padding:1px 8px}
+.stp-open{background:var(--warn-soft);color:var(--warn)}.stp-done{background:var(--ok-soft);color:var(--ok)}.stp-acc{background:var(--sunk);color:var(--ink2)}
+.rh td{vertical-align:top;white-space:normal;min-width:120px}
+.rh td.nw{white-space:nowrap;min-width:0}
+.nb.rk{background:rgba(232,172,74,.2);color:#f0b95a}
+.nb.rk.hi{background:rgba(255,147,138,.25);color:#ffb4ad}
+.sub2 .rkx{color:var(--warn);font-weight:600}
+
+/* ---------- 실험 데이터 화면 ---------- */
+.linkb{border:0;background:transparent;padding:0 0 0 8px;color:var(--accent);font-weight:600;font-size:13px;border-bottom:1px solid transparent;border-radius:0}
+.linkb:hover{border-bottom-color:var(--accent)}
+a.dl{display:inline-block;padding:6px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:600;text-decoration:none}
+a.dl:hover{border-color:var(--accent);color:var(--accent)}
+.tile.static{cursor:default}
+.dfilters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px}
+.chipf{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:99px;border:1px solid var(--line2);background:var(--surface);font-weight:500;font-size:13px;color:var(--mute)}
+.chipf.on{color:var(--ink);border-color:var(--ink)}
+.chipf small{color:var(--mute);font-family:var(--mono)}
+.pd{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:0;flex:none}
+.chipf .pd{margin-right:0}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);margin-left:auto}
+.chk input{width:auto}
+svg.sc{width:100%;max-width:980px;height:auto;display:block}
+svg.sc text{fill:var(--mute);font-size:10.5px;font-family:var(--mono)}
+svg.sc text.ax{fill:var(--ink2);font-size:12px;font-family:var(--font);font-weight:600}
+svg.sc .grid{stroke:var(--line);stroke-width:1}
+svg.sc .dp{fill-opacity:.78;stroke:var(--surface);stroke-width:1.5}
+svg.sc .dp.st{stroke:var(--ink);stroke-width:2}
+.dtab .stk{position:sticky;left:0;background:var(--surface);z-index:1;white-space:nowrap;min-width:150px}
+.dtab thead .stk{background:var(--sunk)}
+.dtab td.num{font-family:var(--mono);font-size:12.5px;text-align:right;white-space:nowrap}
+.dtab th{white-space:nowrap}
+.dtab .na{color:var(--line2)}
+.dtab tbody tr:hover td{background:var(--sunk)}
+.dtab tbody tr:hover td.stk{background:var(--sunk)}
+.dtab td,.dtab th{padding:5px 10px}
+button.th{border:0;background:transparent;padding:2px 0;font-size:11.5px;font-weight:600;color:var(--mute);border-radius:0;white-space:nowrap}
+button.th:hover{color:var(--accent)}
+button.th small{font-weight:400}
+.gx2{background:var(--accent-soft)!important}.gy2{background:var(--ok-soft)!important}
+.fillrow td{background:var(--sunk);font-size:11px;color:var(--mute);padding:4px 10px;text-align:center;border-bottom:1px solid var(--line2)}
+.fillrow .stk{text-align:left}
+.fb{height:5px;border-radius:3px;background:var(--line2);overflow:hidden;margin:2px 0 3px;min-width:56px}
+.fb i{display:block;height:100%;background:var(--ok)}.fb i.lo{background:var(--warn)}
+
+
+/* ---------- 대시보드 (전체 프로젝트) ---------- */
+.dash-h{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 16px;margin-bottom:14px}
+.dash-h h2{margin:0;font-size:22px;letter-spacing:-.01em}
+.dash-h .sub{margin:2px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--line);font-weight:500;text-align:left}
+.tile .tn{font:600 30px/1.1 var(--mono);color:var(--ink)}
+.tile .tl{font-size:13px;color:var(--mute)}
+.tile.warn .tn{color:var(--warn)}.tile.bad .tn{color:var(--bad)}.tile.ok .tn{color:var(--ok)}
+.tile.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.tile:hover{border-color:var(--accent);color:inherit}
+.dwrap{background:var(--surface);border-radius:14px}
+.dt{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+.dt th{padding:11px 14px;text-align:left;font-size:11.5px;font-weight:600;letter-spacing:.05em;color:var(--mute);background:var(--sunk);white-space:nowrap}
+.dt td{padding:13px 14px;border-top:1px solid var(--line);vertical-align:middle}
+.drow{cursor:pointer}
+.drow:hover td,.drow:focus-visible td{background:var(--sunk)}
+.drow:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.c-name{min-width:230px}
+.c-name b{font-size:14.5px;line-height:1.35;display:block;margin-bottom:3px}
+.sub2{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--mute)}
+.sub2 .cur{color:var(--accent);font-weight:600}.sub2 .fl{color:var(--bad);font-weight:600}.sub2 .rd{color:var(--ok);font-weight:600}
+.c-next{min-width:220px;max-width:340px;font-size:13px;color:var(--ink2);display:table-cell}
+.c-next{overflow:hidden}
+.mgh{display:flex;gap:10px}
+.mgh span{font-size:11px;text-align:center;letter-spacing:.05em}
+.mx{display:flex;gap:10px}
+.mg{display:flex;gap:3px}
+.m{display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--sunk);border:1px solid var(--line2);position:relative;flex:none}
+.m.done{background:var(--ok);border-color:var(--ok)}
+.m.cur{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.m.f::after{content:"";position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:var(--bad);border:2px solid var(--surface)}
+.pips.sm{display:inline-flex;gap:3px}
+.pips.sm i{width:11px;height:11px;border-radius:50%;border:2px solid var(--line2);display:inline-block}
+.pips.sm i.on{background:var(--ok);border-color:var(--ok)}
+.vts{display:flex;flex-wrap:wrap;gap:4px}
+.dt td.stale b{color:var(--warn)}
+.small.bad{color:var(--bad);font-weight:600}
+.dleg{margin-top:12px}
+.dleg .m{margin-right:6px;vertical-align:-3px}
+
+/* ---------- 프로젝트 상세: 이동 줄 · 시도 이력 · 과거 시도 보기 ---------- */
+.crumb{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+.crumb button.back{font-weight:600}
+.crumb select{margin-left:auto}
+.hist{margin-top:14px;border:1px solid var(--panel-line);border-radius:12px;overflow:hidden}
+.hist-h{padding:7px 14px;font-size:11.5px;font-weight:600;letter-spacing:.05em;color:var(--panel-mute);background:var(--panel-sunk)}
+.hist-h span{font-weight:400;letter-spacing:0}
+.hrow{display:grid;grid-template-columns:96px minmax(120px,1.3fr) 92px minmax(120px,2fr) 72px;gap:4px 12px;align-items:center;width:100%;text-align:left;padding:9px 14px;border:0;border-top:1px solid var(--panel-line);border-radius:0;background:transparent;color:var(--panel-ink);font-weight:500;font-size:13.5px}
+.hrow:hover{background:var(--panel-sunk);color:var(--panel-ink)}
+.hrow.on{background:rgba(95,205,233,.14)}
+.hrow .ha{font-weight:700}
+.hrow .ff{color:var(--pbad);font-weight:600}
+.hrow .hd{font-family:var(--mono);font-size:12px;color:var(--panel-mute)}
+.hrow .hr{color:var(--panel-ink);opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrow .hb{justify-self:end;font-size:12px;color:var(--pa)}
+@media(max-width:760px){.hrow{grid-template-columns:1fr 1fr}.hrow .hr{grid-column:1/-1;white-space:normal}.hrow .hb{justify-self:start}}
+.node.fail .nd{background:var(--pbad);border-color:var(--pbad);color:#2a0905}
+.node.fail::before{background:linear-gradient(90deg,var(--pok) 50%,var(--panel-line) 50%)}
+.node.fail .nl{color:var(--pbad)}
+.node.dim{opacity:.45}
+.nb.warnp{background:rgba(255,147,138,.28);color:#ffc2bc;box-shadow:inset 0 0 0 1px var(--pbad)}
+.leftbar{padding:12px 22px;background:var(--bad-soft);color:var(--bad);border-bottom:1px solid var(--line);font-size:14px}
+.pastbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:12px 22px;background:var(--warn-soft);color:var(--warn);border-bottom:1px solid var(--line);font-size:14px}
+.pastbar button{background:var(--surface)}
+@media(max-width:600px){.head{padding:16px 16px 14px}.sheet-h,.sheet-b,.cmpbox>summary,.cmpbox>.dbody{padding-inline:16px}.name{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div><h1 id="home" data-back="1" title="전체 프로젝트로" style="cursor:pointer">실험실 프로젝트 관리 대시보드</h1><p class="sub">프로젝트별 진행 단계, recipe·특성 결과, Risk와 이슈 이력을 한곳에서 관리해요</p></div>
+    <div class="links">ML용 실험 데이터 <button class="linkb" data-data="1">표로 보기</button><a href="/api/ml?fmt=xlsx">엑셀</a><a href="/api/ml?fmt=csv">CSV</a></div>
+  </header>
+  <main id="detail" style="min-width:0"></main>
+</div>
+<script>
+/* 제품 설계 → Lab SPL 고객 승인 → [R/A → Trial production → 고객 승인] ×3 → 양산 이관 회의
+   어느 차수든 fail이면 1차 R/A부터 다시, 3연속 통과해야 양산 이관 가능 */
+const STAGES=["제품 설계","Lab SPL 고객 승인",
+ "1차 R/A","1차 Trial production","1차 고객 승인",
+ "2차 R/A","2차 Trial production","2차 고객 승인",
+ "3차 R/A","3차 Trial production","3차 고객 승인",
+ "양산 이관 회의"];
+const FIRST_RA=2,LAST=STAGES.length-1;
+const TEMPLATE=[["가시광선 투과율(VLT)","%"],["IR 차단율 (940nm)","%"],["총 태양에너지 차단율(TSER)","%"],["UV 차단율","%"],
+ ["Haze","%"],["접착력","gf/25mm"],["내후성 색차(ΔE)",""],["두께","µm"],["열수축률","%"],["표면 경도(연필)","H"]];
+const passed=p=>p.pos<FIRST_RA?0:Math.min(3,Math.floor((p.pos-FIRST_RA)/3));
+let D={projects:[]},sel=null;
+const view={},viewAtt={},modes={};                               // 프로젝트별로 지금 보고 있는 단계·시도 (저장하지 않음)
+const viewA={};                                                  // 프로젝트별로 지금 보고 있는 시도
+const resetView=p=>{delete view[p.id];delete viewAtt[p.id];delete viewA[p.id]};
+const DESIGN="제품 설계";
+const filled=r=>!!(r.note&&r.note.trim())||r.recipe.length>0||r.evals.length>0||(r.structure||[]).length>0||(r.exp&&(r.exp.runs.length>0||r.exp.x.length>0||r.exp.y.length>0))||(r.risks||[]).length>0||!!(r.decision&&r.decision.result);
+/* 열 이름·단위를 통일해 두면 여러 프로젝트의 실험을 한 표로 합칠 수 있어요 (ML용) */
+const EXP_X=[["나노입자 함량","wt%"],["바인더 함량","wt%"],["광개시제 함량","wt%"],["분산 시간","hr"],["코팅 속도","m/min"],["건조 온도","℃"],["UV 경화량","mJ/cm²"],["건조 두께","µm"]];
+const EXP_Y=[["가시광선 투과율(VLT)","%"],["IR 차단율 (940nm)","%"],["총 태양에너지 차단율(TSER)","%"],["UV 차단율","%"],["Haze","%"],["접착력","gf/25mm"]];
+const LAYERS=[["하드코팅","","3","µm"],["IR 차단 코팅층","세라믹 나노입자 + 아크릴 바인더","4","µm"],["PET 기재","PET","50","µm"],["점착층","아크릴 PSA","25","µm"],["이형필름","","","µm"]];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const uid=()=>Math.random().toString(36).slice(2,10);
+const today=()=>new Date().toISOString().slice(0,10);
+const days=d=>d?Math.floor((Date.now()-new Date(d))/864e5):null;
+const cur=()=>D.projects.find(p=>p.id===sel);
+let timer;
+function save(){clearTimeout(timer);timer=setTimeout(()=>fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...D,projects:D.projects.map(p=>({...p,records:p.records.filter(filled)}))})}).catch(()=>toast("저장 실패: 서버가 켜져 있는지 확인하세요")),300)}
+/* 브라우저 기본 prompt/confirm은 앱 안의 브라우저 등에서 막혀 아무 반응이 없을 수 있어서, 화면 안에 직접 그리는 대화상자를 쓴다.
+   input을 주면 입력칸이 생기고 입력값(취소는 null)을, 주지 않으면 확인 true(취소는 null)를 돌려준다 */
+function dlg({title,msg,input,ok="확인",danger=false}){
+ return new Promise(res=>{
+  const w=document.createElement("div");w.className="modal";
+  w.innerHTML=`<div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mt"><h3 id="mt">${esc(title)}</h3><p>${esc(msg||"")}</p>
+   ${input?`<textarea id="mi" placeholder="${esc(input)}"></textarea>`:""}
+   <div class="acts" style="justify-content:flex-end;margin-top:14px"><button class="d" data-c="0">취소</button><button class="${danger?"dng":"p"}" data-c="1">${esc(ok)}</button></div></div>`;
+  const key=e=>{if(e.key==="Escape")done(null)};
+  const done=v=>{w.remove();document.removeEventListener("keydown",key,true);res(v)};
+  w.addEventListener("click",e=>{const c=e.target.dataset?.c;
+   if(e.target===w||c==="0")done(null);else if(c==="1")done(input?w.querySelector("#mi").value:true)});
+  document.addEventListener("keydown",key,true);document.body.appendChild(w);
+  (w.querySelector("#mi")||w.querySelector('[data-c="1"]')).focus()})}
+function toast(t){const e=document.createElement("div");e.className="toast";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2400)}
+const touch=p=>{p.updated=today()};
+const log=(p,t)=>{p.log.unshift({date:today(),text:t})};
+function fix(p){p.specs=p.specs||[];p.pos=Number.isInteger(p.pos)?p.pos:0;p.attempt=p.attempt||1;p.log=p.log||[];p.records=p.records||[];
+ p.records.forEach(r=>{r.recipe=r.recipe||[];r.evals=r.evals||[];r.note=r.note||"";
+  if(r.stage===DESIGN){r.structure=r.structure||[];r.exp=r.exp||{x:[],y:[],runs:[]}}
+  if(/R\/A$/.test(r.stage)){r.risks=r.risks||[];r.decision=r.decision||{result:"",date:"",by:"",cond:""}}});syncEvals(p)}
+const getRec=(p,stage,attempt=p.attempt,create=false)=>{
+ let r=p.records.find(x=>x.stage===stage&&x.attempt===attempt);
+ if(!r&&create){r={id:uid(),stage,attempt,note:"",recipe:[],evals:[]};
+  if(stage===DESIGN){r.structure=[];r.exp={x:[],y:[],runs:[]}}
+  if(/R\/A$/.test(stage)){r.risks=[];r.decision={result:"",date:"",by:"",cond:""}}p.records.push(r)}return r};
+const curRec=p=>getRec(p,STAGES[p.pos],p.pos<FIRST_RA?1:p.attempt);   // 현재 단계의 기록
+const failCount=r=>r?r.evals.filter(e=>e.result==="Fail").length:0;
+
+/* 시도 이력: 진행 기록의 'Fail → 1차 R/A부터 다시 (시도 N)' 줄에서 단계·사유·날짜를 읽는다 */
+function failsOf(p){
+ return p.log.map(l=>{const m=String(l.text).match(/^✗ (.+?) Fail(?: · (.*))? → 1차 R\/A부터 다시 \(시도 (\d+)\)$/);
+  return m?{date:l.date,stage:m[1],idx:STAGES.indexOf(m[1]),reason:m[2]||"",attempt:+m[3]-1}:null}).filter(Boolean).sort((a,b)=>a.attempt-b.attempt)}
+/* 통과로 기록된 단계(Fail로 끝난 단계 앞의 단계, 현재 단계 앞의 단계)에 Fail 판정이 남아 있는 기록. 재측정으로 판정을 안 고쳤거나 예외로 통과시킨 경우다 */
+function inconsistent(p){
+ const fm=Object.fromEntries(failsOf(p).map(f=>[f.attempt,f.idx>=0?f.idx:99]));
+ return p.records.filter(r=>{const i=STAGES.indexOf(r.stage);if(i<FIRST_RA||!failCount(r))return false;
+  return r.attempt===p.attempt?i<p.pos:i<(fm[r.attempt]??99)}).map(r=>({stage:r.stage,attempt:r.attempt,n:failCount(r)}))}
+/* ---------- 대시보드: 모든 프로젝트를 한 화면에서 ---------- */
+let dashFilter="all",dashSort="stale";
+const MX=16,MG=3;
+function renderDash(){
+ const rows=D.projects.map(p=>{const pf=perf(p);
+  return{p,n:days(p.updated),pc:passed(p),fc:failCount(curRec(p)),fl:failsOf(p),inc:inconsistent(p),rk:riskSum(activeRA(p)),cnt:v=>pf.list.filter(i=>i.verdict===v).length}});
+ const isStale=r=>r.n!=null&&r.n>30&&r.p.pos<LAST,needs=r=>r.cnt("주의")+r.cnt("불일치")>0;
+ const tiles=[["all","전체 프로젝트",rows.length,""],["stale","30일 넘게 멈춤",rows.filter(isStale).length,"warn"],
+  ["perf","설계 대비 확인 필요",rows.filter(needs).length,"warn"],["fail","현재 Fail 평가",rows.filter(r=>r.fc>0).length,"bad"],
+  ["risk","높음 Risk 열림",rows.filter(r=>r.rk.hi>0).length,"bad"],["inc","Fail 남은 채 통과",rows.filter(r=>r.inc.length).length,"bad"],
+  ["ready","이관 회의 가능",rows.filter(r=>r.p.pos===LAST).length,"ok"]];
+ const flt={all:()=>true,stale:isStale,perf:needs,fail:r=>r.fc>0,inc:r=>r.inc.length>0,risk:r=>r.rk.hi>0,ready:r=>r.p.pos===LAST}[dashFilter]||(()=>true);
+ const srt={stale:(a,b)=>(b.n??-1)-(a.n??-1),stage:(a,b)=>b.p.pos-a.p.pos||(b.n??0)-(a.n??0),name:(a,b)=>String(a.p.name).localeCompare(String(b.p.name),"ko")}[dashSort];
+ const shown=rows.filter(flt).sort(srt),gw=n=>n*MX+(n-1)*MG;
+ const body=shown.map(r=>{const p=r.p,failed=new Set(r.fl.map(f=>f.idx)),stale=isStale(r);
+  const mx=GROUPS.map(([h,idx])=>`<span class="mg">${idx.map(i=>{const st=i<p.pos?"done":i===p.pos?"cur":"todo";
+   return `<i class="m ${st} ${failed.has(i)?"f":""}" title="${esc(STAGES[i])}${failed.has(i)?" · 이전 시도에서 Fail":""}"></i>`}).join("")}</span>`).join("");
+  const vt=["불일치","주의","일치"].map(v=>r.cnt(v)?`<span class="vtag ${VCLS[v]}">${v} ${r.cnt(v)}</span>`:"").join("")||`<span class="small">-</span>`;
+  return `<tr class="drow" data-sel="${p.id}" tabindex="0">
+   <td class="c-name"><b>${esc(p.name||"(이름 없음)")}</b><div class="sub2"><span class="cur">${esc(STAGES[p.pos])}</span>${p.attempt>1?`<span>시도 ${p.attempt}</span>`:""}${r.fl.length?`<span class="fl">Fail ${r.fl.length}회</span>`:""}${r.inc.length?`<span class="fl" title="${esc(r.inc.map(x=>`시도 ${x.attempt} ${x.stage}: Fail ${x.n}건`).join(" / "))}">⚠ Fail 남은 채 통과 ${r.inc.length}</span>`:""}${r.rk.open?`<span class="${r.rk.hi?"fl":"rkx"}" title="R/A에서 아직 열려 있는 Risk">⚑ 열린 Risk ${r.rk.open}${r.rk.hi?` (높음 ${r.rk.hi})`:""}</span>`:""}${p.pos===LAST?`<span class="rd">이관 가능</span>`:""}</div></td>
+   <td><span class="mx">${mx}</span></td>
+   <td><span class="pips sm" title="연속 통과 ${r.pc}/3">${[0,1,2].map(i=>`<i class="${i<r.pc?"on":""}"></i>`).join("")}</span></td>
+   <td class="${stale?"stale":""}">${r.n==null?"-":r.n===0?"오늘":stale?`<b>${r.n}일째 멈춤</b>`:`${r.n}일 전`}</td>
+   <td><div class="vts">${vt}</div>${r.fc?`<div class="small bad">현재 단계 평가 Fail ${r.fc}건</div>`:""}</td>
+   <td class="c-next">${esc(p.note||"-")}</td></tr>`}).join("");
+ $("detail").innerHTML=`<div class="dash-h"><div><h2>전체 프로젝트</h2><p class="sub">행을 누르면 그 프로젝트로 들어가요</p></div>
+  <div class="acts"><label class="small" for="dsort">정렬</label><select id="dsort" style="width:auto">${[["stale","오래 멈춘 순"],["stage","진행 단계 순"],["name","이름 순"]].map(([v,l])=>`<option value="${v}" ${dashSort===v?"selected":""}>${l}</option>`).join("")}</select>
+   <button data-data="1">실험 데이터 보기</button><button class="p" id="add">+ 새 프로젝트</button></div></div>
+  <div class="tiles">${tiles.map(([k,l,n,c])=>`<button class="tile ${c} ${dashFilter===k?"on":""}" data-dfilter="${k}" aria-pressed="${dashFilter===k}"><span class="tn">${n}</span><span class="tl">${l}</span></button>`).join("")}</div>
+  ${shown.length?`<div class="xwrap dwrap"><table class="dt"><thead><tr><th>프로젝트</th><th><div class="mgh">${GROUPS.map(([h,idx])=>`<span style="width:${gw(idx.length)}px">${h}</span>`).join("")}</div></th><th>연속 통과</th><th>마지막 갱신</th><th>설계 대비</th><th>다음 할 일 (재개 메모)</th></tr></thead><tbody>${body}</tbody></table></div>
+  <div class="legend dleg"><span><i class="m done"></i>끝난 단계</span><span><i class="m cur"></i>현재 단계</span><span><i class="m todo"></i>남은 단계</span><span><i class="m todo f"></i>이전 시도에서 Fail 난 단계</span></div>`
+  :`<div class="empty">${rows.length?"이 조건에 해당하는 프로젝트가 없어요.":"프로젝트를 추가해 보세요."}</div>`}`}
+const inp=(rid,t,i,f,v,ph="")=>`<input type="text" data-r="${rid}" data-t="${t}" data-i="${i}" data-f="${f}" placeholder="${ph}" value="${esc(v)}">`;
+const sin=(rid,id,f,v,ph="")=>`<input type="text" data-sr="${rid}" data-si="${id}" data-sf="${f}" placeholder="${ph}" value="${esc(v)}">`;
+const cin=(rid,k,c,f,v,ph="")=>`<input type="text" data-cr="${rid}" data-ck="${k}" data-ci="${c.id}" data-cf="${f}" placeholder="${ph}" value="${esc(v)}">`;
+const uin=(rid,u,k,c,v)=>`<input type="text" data-ur="${rid}" data-ui="${u}" data-uk="${k}" data-uc="${c}" value="${esc(v)}">`;
+const ui={};                                            // 접기/펼치기 상태 (저장하지 않음)
+const isOpen=(k,def)=>ui[k]??def;
+const LCOL=[["하드","#8fb0ff"],["이형|liner|release","#c3a5ff"],["점착|psa|접착","#f3c969"],["코팅","#4fc9b4"],["pet|기재|필름","#d7dbe4"]];
+const layerColor=(name,i)=>{const n=String(name||"").toLowerCase();for(const[k,c]of LCOL)if(new RegExp(k).test(n))return c;return["#ff9f8f","#9ad07a","#79c6e8","#e3a1d6"][i%4]};
+const toUm=(t,unit)=>{const v=num(t);if(!Number.isFinite(v))return null;const u=String(unit||"").toLowerCase();
+ return /mm/.test(u)&&!/µ|μ/.test(u)?v*1000:/nm/.test(u)?v/1000:v};
+function layerDiagram(layers){
+ const ums=layers.map(l=>toUm(l.thickness,l.unit)),maxT=Math.max(1,...ums.filter(x=>x!==null));
+ const hs=ums.map(t=>t===null?30:24+44*Math.sqrt(t/maxT));       // 얇은 층도 보이도록 비율을 완화해서 그린다
+ const X=210,BW=170,W=560,top=26,H=top+hs.reduce((a,b)=>a+b,0)+50;
+ const cut=(s,n)=>{s=String(s||"");return s.length>n?s.slice(0,n-1)+"…":s};
+ let y=top,s=`<svg class="ld" viewBox="0 0 ${W} ${H}" role="img" aria-label="제품 구조 단면"><text x="${X+BW/2}" y="14" text-anchor="middle" class="cap">바깥 (사용자·햇빛 쪽)</text>`;
+ layers.forEach((l,i)=>{const h=hs[i],mid=y+h/2,tot=ums[i];
+  s+=`<rect x="${X}" y="${y}" width="${BW}" height="${h}" rx="3" fill="${layerColor(l.layer,i)}" class="lay"/>
+   <text x="${X-14}" y="${mid-(l.material?2:-4)}" text-anchor="end" class="ln">${esc(cut(l.layer||"(이름 없음)",28))}</text>
+   ${l.material?`<text x="${X-14}" y="${mid+12}" text-anchor="end" class="lm">${esc(cut(l.material,34))}</text>`:""}
+   <text x="${X+BW+14}" y="${mid+4}" class="lt">${esc(l.thickness?`${l.thickness} ${l.unit||""}`:"두께 미입력")}</text>
+   ${l.note?`<text x="${X+BW+14}" y="${mid+17}" class="lm">${esc(cut(l.note,22))}</text>`:""}`;
+  y+=h});
+ const sum=ums.filter(x=>x!==null).reduce((a,b)=>a+b,0);
+ s+=`<text x="${X+BW/2}" y="${y+16}" text-anchor="middle" class="cap">안쪽 (유리 부착 쪽)</text>
+  ${sum?`<text x="${W-6}" y="${H-6}" text-anchor="end" class="lm">총 두께 ${+sum.toFixed(1)} µm · 그림의 층 높이는 보기 좋게 조정한 비율이에요</text>`:""}</svg>`;
+ return s}
+function finalCard(p,r){
+ const ex=r.exp,star=ex.runs.find(u=>u.star);
+ if(!ex.runs.length)return"";
+ if(!star)return`<div class="fin empty-fin"><b>최종 recipe · 특성</b><div class="small">아래 '실험 이력'을 열어 최종으로 정한 실험의 ☆를 누르면, 그 실험의 recipe와 특성이 여기에 보여요.</div></div>`;
+ const idx=ex.runs.indexOf(star)+1;
+ const kv=(c,v,tag="")=>`<div class="kv"><span>${esc(c.name||"(이름 없음)")}</span><b>${v===undefined||v===""?"-":esc(v)} <small>${esc(c.unit)}</small></b>${tag}</div>`;
+ const xs=ex.x.map(c=>kv(c,(star.x||{})[c.id])).join("");
+ const ys=ex.y.map(c=>kv(c,(star.y||{})[c.id])).join("");
+ return `<div class="fin"><div class="finh"><b>최종 recipe · 특성</b> <span class="small">설계 기준 실험 #${idx}${star.date?` · ${esc(star.date)}`:""}${star.note?` · ${esc(star.note)}`:""}</span></div>
+  <div class="fcols"><div><h5>Recipe (입력 변수)</h5><div class="kvs">${xs||`<span class="small">입력 변수 열이 없어요</span>`}</div></div>
+  <div><h5>특성 (결과)</h5><div class="kvs">${ys||`<span class="small">결과 열이 없어요</span>`}</div></div></div></div>`}
+function renderDesign(p,r){
+ const ex=r.exp,cols=[...ex.x.map(c=>["x",c]),...ex.y.map(c=>["y",c])];
+ const layers=r.structure.map((l,i)=>`<div class="tr layer"><span class="small">${i+1}</span>${sin(r.id,l.id,"layer",l.layer,"층 이름")}${sin(r.id,l.id,"material",l.material,"재료·조성")}${sin(r.id,l.id,"thickness",l.thickness,"두께")}${sin(r.id,l.id,"unit",l.unit)}${sin(r.id,l.id,"note",l.note,"비고")}<button class="x" data-sd="${r.id}|${l.id}" title="삭제">×</button></div>`).join("");
+ const table=`<div class="xwrap"><table class="xt"><thead>
+  <tr><th rowspan="3">#</th><th rowspan="3" title="Trial 성능과 비교할 설계 기준 실험 (하나만 선택)">기준</th><th rowspan="3">날짜</th><th rowspan="3">메모</th>${ex.x.length?`<th colspan="${ex.x.length}" class="gx">입력 변수 (Recipe·공정)</th>`:""}${ex.y.length?`<th colspan="${ex.y.length}" class="gy">결과</th>`:""}<th rowspan="3"></th></tr>
+  <tr>${cols.map(([k,c])=>`<th>${cin(r.id,k,c,"name",c.name,"열 이름")}</th>`).join("")}</tr>
+  <tr>${cols.map(([k,c])=>`<th>${cin(r.id,k,c,"unit",c.unit,"단위")}<button class="x" data-cd="${r.id}|${k}|${c.id}" title="이 열 삭제">×</button></th>`).join("")}</tr></thead>
+  <tbody>${ex.runs.map((u,i)=>`<tr><td class="small">${i+1}</td><td><button class="star ${u.star?"on":""}" data-star="${r.id}|${u.id}" title="이 실험을 설계 기준(Trial과 비교할 값)으로 선택">${u.star?"★":"☆"}</button></td><td><input type="date" data-ur="${r.id}" data-ui="${u.id}" data-uk="meta" data-uc="date" value="${esc(u.date)}"></td>
+   <td>${uin(r.id,u.id,"meta","note",u.note)}</td>${cols.map(([k,c])=>`<td>${uin(r.id,u.id,k,c.id,(u[k]||{})[c.id]??"")}</td>`).join("")}
+   <td class="nw"><button class="x" data-rc="${r.id}|${u.id}" title="이 실험을 복제 (한두 조건만 바꿔 다음 실험 만들기)">복제</button><button class="x" data-rd="${r.id}|${u.id}" title="삭제">×</button></td></tr>`).join("")}</tbody></table></div>`;
+ const sk="str:"+r.id,ek="exp:"+r.id;
+ const hasStar=ex.runs.some(u=>u.star);
+ return `<div class="tbl"><label class="l" style="margin-top:0">메모</label>
+  <textarea data-r="${r.id}" data-t="note" placeholder="설계 방향, 후보 구조, 결정 사항">${esc(r.note)}</textarea>
+  <h4>제품 구조 <span class="small">(바깥 → 안쪽)</span></h4>
+  ${r.structure.length?`<div class="ldwrap">${layerDiagram(r.structure)}</div>`:`<div class="empty">아직 층 구조가 없어요. 아래 '층 구조 편집'에서 넣으면 단면 그림이 그려져요.</div>`}
+  <details class="fold" data-ui="${sk}" ${isOpen(sk,!r.structure.length)?"open":""}><summary>층 구조 편집 (${r.structure.length}층)</summary>
+   ${r.structure.length?`<div class="tr layer hd"><span>#</span><span>층 이름</span><span>재료·조성</span><span>두께</span><span>단위</span><span>비고</span><span></span></div>`:""}${layers}
+   <div class="acts"><button data-sa="${r.id}">+ 층 추가</button>${r.structure.length?"":`<button class="d" data-st="${r.id}">필름 기본 구조 넣기</button>`}</div></details>
+  <h4>규격 (평가 기준) <span class="small">· 한 번 정하면 Trial·고객 승인의 측정값이 자동으로 판정돼요</span></h4>
+  ${p.specs.length?`<div class="tr spec hd"><span>평가 항목</span><span>규격</span><span>단위</span><span></span></div>`:""}${p.specs.map(sp=>`<div class="tr spec"><input type="text" data-sp="${sp.id}" data-spf="item" placeholder="평가 항목 (예: Haze)" value="${esc(sp.item)}"><input type="text" class="${sp.spec&&!parseSpec(sp.spec)?"invalid":""}" data-sp="${sp.id}" data-spf="spec" placeholder="예: ≥70 · ≤1.5 · 70~80 · 100±5" value="${esc(sp.spec)}"><input type="text" data-sp="${sp.id}" data-spf="unit" placeholder="단위" value="${esc(sp.unit)}"><button class="x" data-spdel="${sp.id}" title="삭제">×</button></div>`).join("")}
+  <div class="acts"><button data-spadd="1">+ 규격 항목</button>${p.specs.length?"":`<button class="d" data-sptpl="1">필름 기본 항목 넣기</button>`}<span class="small">≥ 이상 · ≤ 이하 · 70~80 범위 · 100±5 허용오차 (붉은 칸은 읽을 수 없는 형식이에요)</span></div>
+  ${finalCard(p,r)}
+  <details class="fold" data-ui="${ek}" ${isOpen(ek,false)?"open":""}><summary>실험 이력 (${ex.runs.length}회 · 입력 변수 ${ex.x.length}개 · 결과 ${ex.y.length}개) <span class="small">— 눌러서 열기/닫기</span></summary>
+   <div class="small" style="margin:6px 0">한 줄이 실험 1회예요. 열 이름과 단위를 프로젝트마다 똑같이 쓰면 나중에 모든 프로젝트의 실험을 한 표로 합쳐 ML에 쓸 수 있어요. ("필름 기본 열 넣기"가 같은 이름을 써 줘요)</div>
+   ${cols.length?table:""}
+   ${ex.runs.length?`<div class="small" style="margin-top:4px">☆를 눌러 <b>설계 기준 실험</b>을 고르면 위의 '최종 recipe·특성'과 '설계 vs Trial 성능 비교'의 기준이 돼요.${hasStar?"":" (고르지 않으면 성능 비교는 모든 실험의 평균을 기준으로 해요)"}</div>`:""}
+   <div class="acts" style="margin-top:6px"><button data-xa="${r.id}|x">+ 입력 변수 열</button><button data-xa="${r.id}|y">+ 결과 열</button>
+   ${cols.length?`<button data-ra="${r.id}">+ 실험 추가</button>`:""}${cols.length?"":`<button class="d" data-xt="${r.id}">필름 기본 열 넣기</button>`}</div></details></div>`;
+}
+/* ---------- R/A: Risk 관리 · 이슈·해결 이력 · Trial production 진행 판단 ---------- */
+const isRA=s=>/R\/A$/.test(s||"");
+const RISK_CATS=["원료·재료","공정","설비","품질·성능","고객","일정·기타"];
+const RISK_ST=["열림","조치 중","해결됨","수용"];
+const LV3=[["1","하"],["2","중"],["3","상"]];
+const riskLevel=k=>{const s=+k.sev,p=+k.prob;if(!s||!p)return"";const v=s*p;return v>=6?"높음":v>=3?"중간":"낮음"};
+const isOpenRisk=k=>k.status==="열림"||k.status==="조치 중";
+const openRisks=rec=>(rec&&rec.risks||[]).filter(isOpenRisk);
+const LVCLS={"높음":"hi","중간":"mid","낮음":"lo","":"none"};
+const newRisk=(o={})=>({id:uid(),title:"",detail:"",cat:"",sev:"",prob:"",status:"열림",action:"",result:"",owner:"",due:"",from:"",...o});
+/* 이전 R/A에서 아직 해결되지 않은(열림·조치 중·수용) risk를 이 R/A로 이어 온다 */
+function importRisks(p,rec){let n=0;
+ p.records.filter(x=>isRA(x.stage)&&x.id!==rec.id).sort((a,b)=>a.attempt-b.attempt||STAGES.indexOf(a.stage)-STAGES.indexOf(b.stage)).forEach(src=>(src.risks||[]).forEach(k=>{
+  if(k.status==="해결됨")return;const ref=k.ref||k.id;if(rec.risks.some(x=>(x.ref||x.id)===ref))return;
+  rec.risks.push({...k,id:uid(),ref,from:`${k.from?k.from+" → ":""}시도 ${src.attempt} ${src.stage}에서 이월`});n++}));return n}
+/* 지금 진행 중인 차수의 R/A 기록 (그 프로젝트에서 회의가 다루는 R/A) */
+function activeRA(p){if(p.pos<FIRST_RA)return null;const idx=Math.min(FIRST_RA+3*Math.floor((p.pos-FIRST_RA)/3),8);return getRec(p,STAGES[idx],p.attempt)}
+function riskSum(rec){const o=openRisks(rec),by=v=>o.filter(k=>riskLevel(k)===v).length;return{open:o.length,hi:by("높음"),mid:by("중간"),lo:by("낮음"),prog:o.filter(k=>k.status==="조치 중").length,
+ done:(rec&&rec.risks||[]).filter(k=>k.status==="해결됨").length,acc:(rec&&rec.risks||[]).filter(k=>k.status==="수용").length,total:(rec&&rec.risks||[]).length,titles:o.filter(k=>riskLevel(k)==="높음").map(k=>k.title||"(제목 없음)")}}
+const rin=(rid,id,f,v,ph="",cls="")=>`<input type="text" class="${cls}" data-kr="${rid}" data-ki="${id}" data-kf="${f}" placeholder="${esc(ph)}" value="${esc(v)}">`;
+const rsel=(rid,id,f,v,opts,blank)=>`<select data-kr="${rid}" data-ki="${id}" data-kf="${f}"><option value="">${blank}</option>${opts.map(o=>{const [val,lab]=Array.isArray(o)?o:[o,o];return`<option value="${esc(val)}" ${val===v?"selected":""}>${esc(lab)}</option>`}).join("")}</select>`;
+const rta=(rid,id,f,v,ph)=>`<textarea data-kr="${rid}" data-ki="${id}" data-kf="${f}" placeholder="${esc(ph)}">${esc(v)}</textarea>`;
+function riskCard(r,k,n){const lv=riskLevel(k);
+ return `<div class="risk ${LVCLS[lv]} st-${k.status==="해결됨"?"done":k.status==="수용"?"acc":"open"}">
+  <div class="rk-h"><span class="rk-n">${n}</span>${rin(r.id,k.id,"title",k.title,"Risk · 이슈 (예: 분산 불량으로 Haze 상승)","rk-t")}
+   <span class="lv lv-${LVCLS[lv]}" title="영향 × 발생 가능성으로 자동 계산돼요">${lv||"위험도 미정"}</span><button class="x" data-rdel="${r.id}|${k.id}" title="삭제">×</button></div>
+  <div class="rk-meta"><label>분류${rsel(r.id,k.id,"cat",k.cat,RISK_CATS,"선택")}</label><label>영향${rsel(r.id,k.id,"sev",k.sev,LV3,"선택")}</label><label>발생 가능성${rsel(r.id,k.id,"prob",k.prob,LV3,"선택")}</label>
+   <label>상태${rsel(r.id,k.id,"status",k.status,RISK_ST,"")}</label><label>담당${rin(r.id,k.id,"owner",k.owner,"이름")}</label><label>목표일<input type="date" data-kr="${r.id}" data-ki="${k.id}" data-kf="due" value="${esc(k.due)}"></label></div>
+  <div class="rk-body"><label>설명 · 원인${rta(r.id,k.id,"detail",k.detail,"무슨 일이고, 왜 생겼나")}</label><label>대응 · 해결 방법${rta(r.id,k.id,"action",k.action,"어떻게 막거나 해결했나")}</label>
+   <label>결과 · 확인 내용${rta(r.id,k.id,"result",k.result,"해결됐는지 어떻게 확인했나 (Trial 결과, 재측정 등)")}</label></div>
+  ${k.from?`<div class="rk-from">출처 · ${esc(k.from)}</div>`:""}</div>`}
+function raHistory(p){
+ const fl=failsOf(p),rows=[];
+ p.records.filter(x=>isRA(x.stage)).forEach(r=>(r.risks||[]).forEach(k=>rows.push({a:r.attempt,s:r.stage,k})));
+ rows.sort((x,y)=>x.a-y.a||STAGES.indexOf(x.s)-STAGES.indexOf(y.s));
+ const orphan=fl.filter(f=>!rows.some(x=>x.k.from&&x.k.from.includes(`시도 ${f.attempt} · ${f.stage} Fail`)));
+ if(!rows.length&&!orphan.length)return`<div class="small">아직 기록된 이슈가 없어요.</div>`;
+ const tr=rows.map(({a,s,k})=>`<tr><td class="nw">시도 ${a}<br><span class="small">${esc(s)}</span></td><td><b>${esc(k.title||"(제목 없음)")}</b>${k.from?`<div class="small">${esc(k.from)}</div>`:""}${k.detail?`<div class="small">${esc(k.detail)}</div>`:""}</td>
+  <td>${esc(k.action)||`<span class="na">-</span>`}</td><td>${esc(k.result)||`<span class="na">-</span>`}</td><td class="nw"><span class="lv lv-${LVCLS[riskLevel(k)]}">${riskLevel(k)||"-"}</span></td><td class="nw"><span class="stp stp-${k.status==="해결됨"?"done":k.status==="수용"?"acc":"open"}">${esc(k.status)}</span></td></tr>`).join("");
+ const orows=orphan.map(f=>`<tr><td class="nw">시도 ${f.attempt}<br><span class="small">${esc(f.stage)}</span></td><td><b>${esc(f.stage)} Fail</b><div class="small">${esc(f.reason)||"사유 미기록"} · ${esc(f.date)}</div></td><td colspan="2"><span class="small">Risk로 정리되지 않았어요. R/A에서 'Risk 추가'로 대응을 남겨 주세요.</span></td><td>-</td><td><span class="stp stp-open">Fail</span></td></tr>`).join("");
+ return`<div class="xwrap"><table class="xt cmp rh"><thead><tr><th>시점</th><th>이슈 · Risk</th><th>대응 · 해결 방법</th><th>결과 · 확인</th><th>위험도</th><th>상태</th></tr></thead><tbody>${tr}${orows}</tbody></table></div>`}
+function renderRisk(p,r){
+ const sm=riskSum(r),dec=r.decision,hk="rah:"+p.id;
+ const sent=sm.hi?`⚠ 높음 Risk ${sm.hi}건이 아직 열려 있어요 · ${sm.titles.join(", ")}`:sm.open?"열린 Risk는 있지만 높음은 없어요":sm.total?"열린 Risk가 없어요":"아직 등록된 Risk가 없어요";
+ const prev=p.records.some(x=>isRA(x.stage)&&x.id!==r.id&&(x.risks||[]).some(k=>k.status!=="해결됨"&&!r.risks.some(y=>(y.ref||y.id)===(k.ref||k.id))));
+ return `<div class="ra">
+  <div class="gate ${sm.hi?"warn":dec.result==="진행"||dec.result==="조건부 진행"?"go":""}">
+   <div class="gate-h"><b>Trial production 진행 판단</b><span class="small">R/A 회의에서 Risk를 보고 정해요</span></div>
+   <div class="gate-sum"><span class="lv lv-hi">높음 ${sm.hi}</span><span class="lv lv-mid">중간 ${sm.mid}</span><span class="lv lv-lo">낮음 ${sm.lo}</span><span class="sep"></span><span class="small">열림·조치 중 ${sm.open}건 (조치 중 ${sm.prog}) · 해결 ${sm.done} · 수용 ${sm.acc}</span></div>
+   <div class="gate-msg ${sm.hi?"bad":""}">${esc(sent)}</div>
+   <div class="gate-form"><label>회의 결정<select data-dr="${r.id}" data-df="result"><option value="">미정</option>${["진행","조건부 진행","보류"].map(o=>`<option ${dec.result===o?"selected":""}>${o}</option>`).join("")}</select></label>
+    <label>결정일<input type="date" data-dr="${r.id}" data-df="date" value="${esc(dec.date)}"></label><label>결정자 · 참석<input type="text" data-dr="${r.id}" data-df="by" value="${esc(dec.by)}" placeholder="예: 개발팀장, 품질, 영업"></label>
+    <label class="wide">조건 · 사유<textarea data-dr="${r.id}" data-df="cond" placeholder="예: 접착력 재확인 후 진행 / 고객 사양 확정 전까지 보류">${esc(dec.cond)}</textarea></label></div></div>
+  <h4>Risk 목록 <span class="small">(${sm.total}건)</span></h4>
+  ${r.risks.length?r.risks.map((k,i)=>riskCard(r,k,i+1)).join(""):`<div class="empty">등록된 Risk가 없어요. 'Risk 추가'로 이번 R/A에서 걱정되는 점을 남기세요.</div>`}
+  <div class="acts" style="margin-top:8px"><button data-radd="${r.id}">+ Risk 추가</button>${prev?`<button class="d" data-rimp="${r.id}">이전 R/A의 해결 안 된 Risk 가져오기</button>`:""}</div>
+  <details class="fold" data-ui="${hk}" ${isOpen(hk,true)?"open":""}><summary>이슈 · 해결 이력 <span class="small">프로젝트 전체 · 이전 시도와 이전 차수 포함</span></summary>${raHistory(p)}</details>
+ </div>`}
+function renderRec(p,r){
+ if(r.stage===DESIGN)return renderDesign(p,r);
+ const recipe=r.recipe.map(x=>`<div class="tr recipe">${inp(r.id,"recipe",x.id,"item",x.item,"항목 (예: 코팅 속도)")}${inp(r.id,"recipe",x.id,"value",x.value)}${inp(r.id,"recipe",x.id,"unit",x.unit)}${inp(r.id,"recipe",x.id,"note",x.note)}<button class="x" data-delrow="${r.id}|recipe|${x.id}" title="삭제">×</button></div>`).join("");
+ const evals=r.evals.map(x=>{const ps=specOf(p,x.item),auto=!!parseSpec(x.spec),res=x.result;
+  return `<div class="tr evals">${inp(r.id,"evals",x.id,"item",x.item,"평가 항목")}
+  <span data-spk="${r.id}|${x.id}" style="display:contents">${ps?`<span class="spc" title="제품 설계 단계의 '규격'에서 정한 값이에요">${esc(ps.spec)}</span>`:inp(r.id,"evals",x.id,"spec",x.spec,"예: ≥70")}</span>${inp(r.id,"evals",x.id,"value",x.value)}${inp(r.id,"evals",x.id,"unit",x.unit)}
+  ${auto?`<span class="jd j-${res||"none"}" data-jd="${r.id}|${x.id}" title="규격과 측정값으로 자동 판정돼요">${res||"미판정"}</span>`
+   :`<select data-r="${r.id}" data-t="evals" data-i="${x.id}" data-f="result" class="res-${esc(res)}" title="규격이 숫자로 읽히지 않아 직접 골라요">${["","Pass","Fail"].map(o=>`<option value="${o}" ${o===res?"selected":""}>${o||"미판정"}</option>`).join("")}</select>`}
+  ${inp(r.id,"evals",x.id,"note",x.note)}<button class="x" data-delrow="${r.id}|evals|${x.id}" title="삭제">×</button></div>`}).join("");
+ const missSpecs=(p.specs||[]).filter(s=>s.item&&!r.evals.some(e=>norm(e.item)===norm(s.item)));
+ return (isRA(r.stage)?renderRisk(p,r):"")+`<div class="tbl"><label class="l" style="margin-top:0">메모</label>
+  <textarea data-r="${r.id}" data-t="note" placeholder="이 단계에서 있었던 일, 결정, 확인 필요한 것">${esc(r.note)}</textarea>
+  <h4>Recipe</h4>
+  ${r.recipe.length?`<div class="tr recipe hd"><span>항목</span><span>값</span><span>단위</span><span>비고</span><span></span></div>`:""}${recipe}
+  <button data-addrow="${r.id}|recipe">+ Recipe 항목</button>
+  <h4>특성 평가 결과</h4>
+  ${(p.specs||[]).length?`<div class="small" style="margin-bottom:6px">규격은 제품 설계 단계에서 정한 값이에요. <b>측정값만 입력하면 자동으로 판정돼요.</b></div>`:`<div class="small" style="margin-bottom:6px">제품 설계 단계에서 '규격'을 정해 두면, 여기서는 측정값만 넣어도 Pass/Fail이 자동으로 나와요.</div>`}
+  ${r.evals.length?`<div class="tr evals hd"><span>평가 항목</span><span>규격(기준)</span><span>측정값</span><span>단위</span><span>판정</span><span>비고</span><span></span></div>`:""}${evals}
+  <div class="acts"><button data-addrow="${r.id}|evals">+ 평가 항목</button>${missSpecs.length?`<button class="p" data-spfill="${r.id}">규격 항목 ${missSpecs.length}개 채우기</button>`:""}${!r.evals.length&&!(p.specs||[]).length?`<button class="d" data-tpl="${r.id}">필름 기본 평가항목 넣기</button>`:""}</div></div>`;
+}
+/* ---------- 설계 vs Trial 성능 비교 ---------- */
+const norm=s=>String(s||"").toLowerCase().replace(/\s+/g,"");
+const num=v=>{if(v===undefined||v===null||String(v).trim()==="")return NaN;return Number(String(v).replace(/,/g,"").trim())};
+const mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const sd=a=>a.length<2?0:Math.sqrt(a.reduce((s,x)=>s+(x-mean(a))**2,0)/(a.length-1));
+const fmt=v=>v==null||!Number.isFinite(v)?"-":String(+v.toFixed(2));
+function parseSpec(t){t=String(t||"").trim();let m;
+ if(m=t.match(/^(-?\d+(?:\.\d+)?)\s*±\s*(\d+(?:\.\d+)?)/))return{min:+m[1]-+m[2],max:+m[1]+ +m[2]};
+ if(m=t.match(/^(-?\d[\d.]*)\s*[~∼-]\s*(-?\d[\d.]*)$/))return{min:+m[1],max:+m[2]};
+ if(m=t.match(/[≥>]=?\s*(-?\d[\d.]*)/))return{min:+m[1]};
+ if(m=t.match(/[≤<]=?\s*(-?\d[\d.]*)/))return{max:+m[1]};
+ return null}
+/* 규격은 프로젝트마다 한 번 정해 두고(p.specs), Trial·고객 승인에서는 측정값만 넣으면 자동으로 판정한다 */
+const specOf=(p,item)=>norm(item)?(p.specs||[]).find(x=>norm(x.item)===norm(item))||null:null;
+const judge=(spec,val)=>{const sp=parseSpec(spec),v=num(val);if(!sp||!Number.isFinite(v))return"";return(sp.min===undefined||v>=sp.min)&&(sp.max===undefined||v<=sp.max)?"Pass":"Fail"};
+function syncEvals(p){p.records.forEach(r=>(r.evals||[]).forEach(e=>{
+ const s=specOf(p,e.item);if(s){e.spec=s.spec;if(!e.unit&&s.unit)e.unit=s.unit}
+ if(parseSpec(e.spec))e.result=judge(e.spec,e.value)}))}            // 규격이 숫자로 읽히면 자동 판정(값이 없으면 미판정), 못 읽으면 직접 고른 판정을 그대로 둔다
+function syncAndRefresh(p){syncEvals(p);touch(p);save();refreshLive()}
+/* 입력 중인 칸의 포커스를 잃지 않도록, 화면 전체가 아니라 바뀐 부분(현황 패널·단계 머리글·비교 상자·판정 칸)만 다시 그린다 */
+function refreshLive(){
+ const p=cur();if(!p||screen==="data")return;
+ const live=$("detail"),tmp=document.createElement("div");renderDetail(tmp);
+ ["section.head",".sheet-h",".cmpbox"].forEach(sel=>{const a=live.querySelector(sel),b=tmp.querySelector(sel);if(a&&b)a.replaceWith(b)});
+ const lb=live.querySelector(".leftbar"),nb=tmp.querySelector(".leftbar");if(lb&&nb)lb.replaceWith(nb);else if(lb&&!nb)lb.remove();else if(!lb&&nb)live.querySelector(".sheet-h")?.after(nb);
+ live.querySelectorAll("[data-jd]").forEach(a=>{const b=tmp.querySelector(`[data-jd="${a.dataset.jd}"]`);if(b)a.replaceWith(b)});
+ live.querySelectorAll("[data-spk]").forEach(a=>{const b=tmp.querySelector(`[data-spk="${a.dataset.spk}"]`);if(b&&!a.contains(document.activeElement))a.replaceWith(b)})}
+function perf(p){
+ const items=new Map();
+ const get=(name,unit)=>{const k=norm(name);if(!k)return null;
+  if(!items.has(k))items.set(k,{name,unit:unit||"",ref:null,min:null,max:null,star:false,nruns:0,spec:null,specText:"",points:[]});
+  const it=items.get(k);if(!it.unit&&unit)it.unit=unit;return it};
+ const dr=p.records.find(r=>r.stage===DESIGN&&r.exp);
+ if(dr){const star=dr.exp.runs.find(u=>u.star);
+  dr.exp.y.forEach(c=>{const it=get(c.name,c.unit);if(!it)return;
+   const vals=dr.exp.runs.map(u=>num((u.y||{})[c.id])).filter(Number.isFinite);
+   if(!vals.length)return;
+   it.nruns=vals.length;it.min=Math.min(...vals);it.max=Math.max(...vals);
+   const sv=star?num((star.y||{})[c.id]):NaN;
+   if(Number.isFinite(sv)){it.ref=sv;it.star=true}else it.ref=mean(vals)})}
+ p.records.filter(r=>r.stage!==DESIGN&&STAGES.indexOf(r.stage)>=FIRST_RA&&STAGES.indexOf(r.stage)<LAST&&/Trial|고객 승인/.test(r.stage))
+  .sort((a,b)=>a.attempt-b.attempt||STAGES.indexOf(a.stage)-STAGES.indexOf(b.stage))
+  .forEach(r=>r.evals.forEach(e=>{const v=num(e.value);if(!Number.isFinite(v))return;const it=get(e.item,e.unit);if(!it)return;
+   const sp=parseSpec(e.spec);if(sp){it.spec=sp;it.specText=e.spec}
+   it.points.push({label:r.stage.replace("Trial production","Trial"),attempt:r.attempt,value:v,result:e.result,cur:r.attempt===p.attempt})}));
+ const tol=p.tol===undefined||p.tol===""||!Number.isFinite(+p.tol)?5:+p.tol;
+ const list=[...items.values()].filter(it=>it.ref!==null||it.points.length);
+ list.forEach(it=>{const cp=it.points.filter(x=>x.cur),ok=it.ref!==null&&it.ref!==0;
+  it.dev=ok?cp.map(x=>(x.value-it.ref)/Math.abs(it.ref)*100):[];
+  it.maxDev=it.dev.length?Math.max(...it.dev.map(Math.abs)):null;
+  it.maxAbs=ok&&cp.length?Math.max(...cp.map(x=>Math.abs(x.value-it.ref))):null;   // 값이 작은 항목은 %만 보면 과하게 보이므로 절대 차이도 같이 보여 준다
+  it.cv=cp.length>1&&mean(cp.map(x=>x.value))!==0?sd(cp.map(x=>x.value))/Math.abs(mean(cp.map(x=>x.value)))*100:null;
+  it.verdict=!ok?"설계 값 없음":!cp.length?"측정 없음":it.maxDev<=tol?"일치":it.maxDev<=2*tol?"주의":"불일치"});
+ return{list,tol,hasStar:list.some(i=>i.star)}}
+function compareRows(p){
+ const {list,tol}=perf(p);
+ return{tol,
+  summary:list.map(it=>[it.name,it.unit,it.ref===null?"":+it.ref.toFixed(3),it.ref===null?"":it.star?"★ 선정 실험":`평균(${it.nruns}회)`,
+   it.nruns>1?`${fmt(it.min)} ~ ${fmt(it.max)}`:"",it.specText||"",it.maxDev===null?"":+it.maxDev.toFixed(1),it.cv===null?"":+it.cv.toFixed(1),it.verdict]),
+  detail:list.flatMap(it=>it.points.map(x=>[it.name,`${x.label} (시도 ${x.attempt})`,x.value,it.ref&&it.ref!==0?+((x.value-it.ref)/Math.abs(it.ref)*100).toFixed(1):"",x.result||"",x.cur?"현재 시도":"이전 시도"]))}}
+const VCLS={"일치":"vok","주의":"vwarn","불일치":"vbad"};
+function chart(it,tol){
+ const W=560,H=210,L=50,R=14,T=24,B=48,iw=W-L-R,ih=H-T-B;
+ const cats=[...(it.ref!==null?[{design:true}]:[]),...it.points],n=cats.length;if(!n)return"";
+ const okRef=it.ref!==null&&it.ref!==0,bLo=okRef?it.ref-Math.abs(it.ref)*tol/100:null,bHi=okRef?it.ref+Math.abs(it.ref)*tol/100:null;
+ const vals=it.points.map(x=>x.value);
+ if(it.ref!==null)vals.push(it.ref);
+ if(okRef)vals.push(bLo,bHi);
+ if(it.spec){if(it.spec.min!==undefined)vals.push(it.spec.min);if(it.spec.max!==undefined)vals.push(it.spec.max)}
+ const allPos=Math.min(...vals)>=0;
+ let lo=Math.min(...vals),hi=Math.max(...vals);if(lo===hi){lo-=1;hi+=1}const pad=(hi-lo)*.18;lo-=pad;hi+=pad;if(allPos&&lo<0)lo=0;
+ const X=i=>L+iw*((i+.5)/n),Y=v=>T+ih*(1-(v-lo)/(hi-lo));
+ const tx=(x,y,t,a="middle",extra="")=>`<text x="${x}" y="${y}" text-anchor="${a}" ${extra}>${esc(t)}</text>`;
+ let s=`<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(it.name)} 설계 대비 측정값">`;
+ for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);s+=`<line x1="${L}" x2="${L+iw}" y1="${y}" y2="${y}" class="grid"/>${tx(L-6,y+3,fmt(v),"end")}`}
+ if(okRef)s+=`<rect x="${L}" y="${Y(bHi)}" width="${iw}" height="${Math.max(1,Y(bLo)-Y(bHi))}" class="band"/>${tx(L+iw-4,Y(bHi)+11,"허용 편차 ±"+tol+"%","end",'class="bandt"')}`;
+ if(it.ref!==null)s+=`<line x1="${L}" x2="${L+iw}" y1="${Y(it.ref)}" y2="${Y(it.ref)}" class="ref"/>`;
+ if(it.spec){if(it.spec.min!==undefined)s+=`<line x1="${L}" x2="${L+iw}" y1="${Y(it.spec.min)}" y2="${Y(it.spec.min)}" class="spec"/>${tx(L+iw-4,Y(it.spec.min)+11,"규격 ≥ "+fmt(it.spec.min),"end",'class="spect"')}`;
+  if(it.spec.max!==undefined)s+=`<line x1="${L}" x2="${L+iw}" y1="${Y(it.spec.max)}" y2="${Y(it.spec.max)}" class="spec"/>${tx(L+iw-4,Y(it.spec.max)-4,"규격 ≤ "+fmt(it.spec.max),"end",'class="spect"')}`}
+ const off=it.ref!==null?1:0;
+ if(it.points.length>1)s+=`<polyline class="trend" points="${it.points.map((x,i)=>`${X(i+off)},${Y(x.value)}`).join(" ")}"/>`;
+ if(it.ref!==null){const x=X(0),y=Y(it.ref);s+=`<polygon class="dia" points="${x},${y-7} ${x+7},${y} ${x},${y+7} ${x-7},${y}"/>${tx(x,y-11,fmt(it.ref),"middle",'class="val"')}`
+  +tx(x,H-B+16,"설계")+tx(x,H-B+28,it.star?"(★ 선정)":`(평균 ${it.nruns}회)`)}
+ it.points.forEach((x,i)=>{const cx=X(i+off),cy=Y(x.value),c=x.result==="Fail"?"pf":x.result==="Pass"?"pp":"pn";
+  s+=`<circle cx="${cx}" cy="${cy}" r="5.5" class="pt ${c} ${x.cur?"":"old"}"/>${tx(cx,cy-10,fmt(x.value),"middle",'class="val"')}`
+   +tx(cx,H-B+16,x.label)+tx(cx,H-B+28,`시도 ${x.attempt}`,"middle",x.cur?"":'class="old"')});
+ return s+`</svg>`}
+function renderPerf(p){
+ const {list,tol,hasStar}=perf(p);
+ const cnt=v=>list.filter(i=>i.verdict===v).length;
+ const head=`<div class="perf"><div class="cmp-h"><h3>현재 시도 ${p.attempt}의 측정값 기준</h3>
+  <button data-xlsx="|compare">성능 비교 엑셀 ↓</button></div>
+  <div class="tolrow"><label for="tol">허용 편차 ±</label><input id="tol" type="number" min="0" step="0.5" data-p="tol" value="${tol}"><span class="small">% · 설계 기준값 대비 측정값 차이</span></div>
+  <div class="small">설계 기준: ${hasStar?"제품 설계의 ★ 선정 실험 값":"★ 선정 실험이 없어 설계 실험의 <b>평균</b>을 기준으로 해요 (제품 설계 실험표에서 ★를 눌러 대표 실험을 고를 수 있어요)"}. 항목은 <b>이름이 같은 것끼리</b> 이어져요.</div>`;
+ if(!list.length)return head+`<div class="empty">비교할 데이터가 아직 없어요.<br>① 제품 설계의 실험표에 결과 값을 넣고, ② Trial production·고객 승인 단계의 특성 평가에 같은 이름의 항목으로 측정값을 넣으면 여기에 그래프가 나타나요.</div></div>`;
+ const judged=cnt("일치")+cnt("주의")+cnt("불일치");
+ const msg=!judged?"아직 설계와 Trial을 비교할 수 있는 항목이 없어요. 항목 이름이 설계 실험의 결과 열과 같은지 확인해 보세요."
+  :cnt("일치")===judged?`비교된 ${judged}개 항목 모두 현재 시도의 측정값이 설계 기준 ±${tol}% 안에 있어요.`
+  :`비교된 ${judged}개 중 일치 ${cnt("일치")} · 주의 ${cnt("주의")} · 불일치 ${cnt("불일치")}. ${list.filter(i=>i.verdict==="불일치").map(i=>i.name).join(", ")||list.filter(i=>i.verdict==="주의").map(i=>i.name).join(", ")} 부터 확인해 보세요.`;
+ const rows=list.map(it=>`<tr><td><b>${esc(it.name)}</b> <span class="small">${esc(it.unit)}</span></td><td>${it.ref===null?"-":fmt(it.ref)}${it.ref!==null?`<span class="small"> ${it.star?"★":"평균"}</span>`:""}</td>
+  <td>${esc(it.specText)||"-"}</td><td>${it.points.filter(x=>x.cur).map(x=>fmt(x.value)).join(" · ")||"-"}</td>
+  <td>${it.maxDev===null?"-":"±"+fmt(it.maxDev)+"%"}${it.maxAbs===null?"":` <span class="small">(±${fmt(it.maxAbs)} ${esc(it.unit)})</span>`}</td><td>${it.cv===null?"-":fmt(it.cv)+"%"}</td><td><span class="vtag ${VCLS[it.verdict]||"vnone"}">${esc(it.verdict)}</span></td></tr>`).join("");
+ return head+`<div class="banner ${judged&&cnt("일치")===judged?"":"soft"}">${esc(msg)}</div>
+  <div class="xwrap"><table class="xt cmp"><thead><tr><th>평가 항목</th><th>설계 기준</th><th>규격</th><th>현재 시도 측정값</th><th>최대 편차</th><th>산포(CV)</th><th>판정</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="small" style="margin:6px 0 12px">판정: 일치 = 최대 편차 ±${tol}% 이내 · 주의 = ±${2*tol}% 이내 · 불일치 = 그 이상. 산포(CV)는 현재 시도의 측정값이 2개 이상일 때만 계산해요. 안정성은 이 표와 <b>3연속 통과</b>를 함께 보세요.</div>
+  <div class="legend"><span><i class="lg dia"></i>설계 기준값</span><span><i class="lg band"></i>허용 편차 범위 (이 안이면 일치)</span><span><i class="lg pp"></i>Pass</span><span><i class="lg pf"></i>Fail</span><span><i class="lg pn"></i>미판정</span><span><i class="lg old"></i>이전 시도(흐리게)</span><span><i class="lg spec"></i>규격선</span></div>
+  <div class="charts">${list.filter(i=>i.ref!==null||i.points.length).map(it=>`<div class="chcard"><div class="chh"><b>${esc(it.name)}</b> <span class="small">${esc(it.unit)}</span>
+   ${it.verdict==="설계 값 없음"?`<span class="vtag vnone">설계 값 없음</span>`:`<span class="vtag ${VCLS[it.verdict]||"vnone"}">${esc(it.verdict)}${it.maxDev!==null?` · ±${fmt(it.maxDev)}%`:""}</span>`}</div>${chart(it,tol)}</div>`).join("")}</div></div>`;
+}
+/* 설계 vs Trial 비교는 한 단계에 속하지 않으므로 '단계별 상세'와 분리된 별도 상자로 둔다 */
+function cmpBox(p){
+ const {list}=perf(p),c=v=>list.filter(i=>i.verdict===v).length,k="cmp:"+p.id;
+ const sum=c("일치")+c("주의")+c("불일치")?`<span class="vtag vok">일치 ${c("일치")}</span><span class="vtag vwarn">주의 ${c("주의")}</span><span class="vtag vbad">불일치 ${c("불일치")}</span>`:`<span class="small">비교할 데이터 없음</span>`;
+ return `<details class="cmpbox" data-ui="${k}" ${isOpen(k,false)?"open":""}><summary><b style="font-size:16px">설계 vs Trial 성능 비교</b><span class="small" style="font-weight:400">프로젝트 전체 · 단계와 무관</span><span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">${sum}</span></summary>
+  <div class="dbody">${renderPerf(p)}</div></details>`}
+const SHORT=["제품 설계","Lab SPL 승인","R/A","Trial","고객 승인","R/A","Trial","고객 승인","R/A","Trial","고객 승인","이관 회의"];
+const GROUPS=[["준비",[0,1]],["1차",[2,3,4]],["2차",[5,6,7]],["3차",[8,9,10]],["양산",[11]]];
+/* 공정 흐름선: 번호 원 + 연결선. 끝난 단계 ✓ 초록, 현재 단계 청록, Fail로 끝난 단계 ✗ 빨강, 지금 보는 단계는 밝은 배경과 밑줄.
+   과거 시도를 고르면 그 시도가 어디까지 갔고 어디서 Fail 났는지가 그대로 그려진다 */
+function stepper(p,vi,va,fIdx){
+ const past=va<p.attempt;
+ const grid=GROUPS.map(([h,idx])=>`<div class="lg-h" style="grid-column:span ${idx.length}">${h}</div>`).join("");
+ const nodes=STAGES.map((s,i)=>{
+  const inA=r=>i<FIRST_RA||r.attempt===va;
+  const st=past?(i<FIRST_RA||i<fIdx?"done":i===fIdx?"fail":"todo"):(i<p.pos?"done":i===p.pos?"cur":"todo");
+  const has=p.records.some(r=>r.stage===s&&inA(r)&&filled(r)),bad=p.records.some(r=>r.stage===s&&inA(r)&&failCount(r)),
+   prev=!past&&!bad&&p.records.some(r=>r.stage===s&&!inA(r)&&failCount(r)),
+   rr=isRA(s)?p.records.filter(r=>r.stage===s&&inA(r)).flatMap(r=>r.risks||[]).filter(isOpenRisk):[],rh=rr.filter(k=>riskLevel(k)==='높음').length;
+  return `<button class="node ${st} ${past&&st==="todo"?"dim":""} ${i===vi?"view":""} ${i===0?"first":""} ${i===LAST?"last":""}" data-view="${i}" title="${esc(s)}" aria-pressed="${i===vi}">
+   <span class="nd">${st==="done"?"✓":st==="fail"?"✗":i+1}</span><span class="nl">${esc(SHORT[i])}</span>
+   <span class="nbs">${st==="cur"?`<span class="nb now">현재</span>`:""}${bad&&st==="done"&&i>=FIRST_RA?`<span class="nb warnp" title="Fail 판정이 남은 채 통과로 기록됐어요. 재측정으로 판정을 고쳤거나, 예외로 통과시켰다면 메모에 사유를 남겨 주세요">Fail 남음</span>`:bad?`<span class="nb bad">Fail</span>`:rr.length?`<span class="nb rk ${rh?"hi":""}" title="열린 Risk ${rr.length}건 (높음 ${rh})">Risk ${rr.length}</span>`:prev?`<span class="nb prev" title="이전 시도에서 Fail이 있었고, 다시 진행해 현재 시도에서는 Fail이 없어요">이전 Fail</span>`:has?`<span class="nb">기록</span>`:""}</span></button>`}).join("");
+ return `<div class="line"><div class="lgrid">${grid}${nodes}</div></div>`}
+function renderDetail(target){
+ const p=cur();
+ const pc=passed(p),inTrial=p.pos>=FIRST_RA&&p.pos<LAST,next=STAGES[p.pos+1];
+ const fls=failsOf(p);
+ const va=Math.min(Math.max(viewA[p.id]??p.attempt,1),p.attempt),past=va<p.attempt;     // 지금 보고 있는 시도
+ const fl=past?fls.find(f=>f.attempt===va):null,fIdx=past?(fl&&fl.idx>=0?fl.idx:LAST+1):null;
+ const vi=view[p.id]??(past?Math.min(fIdx,LAST):p.pos),vs=STAGES[vi];                  // 지금 보고 있는 단계
+ const ra=vi<FIRST_RA?1:va;                                                           // 제품 설계·Lab SPL 승인은 시도와 무관하게 기록 하나
+ const vr=getRec(p,vs,ra,true),vfc=failCount(vr);
+ const where=past?(vi<FIRST_RA||vi<fIdx?`시도 ${va}에서 통과`:vi===fIdx?`시도 ${va}에서 Fail`:`시도 ${va}에서는 도달 못함`)
+  :(vi===p.pos?"현재 단계":vi<p.pos?"지난 단계":"아직 오지 않은 단계");
+ const whereCls=past&&vi===fIdx?"miss":!past&&vi===p.pos?"now":"";
+ const stageDone=vi>=FIRST_RA&&(past?vi<fIdx:vi<p.pos),leftover=stageDone&&vfc>0;      // 통과로 기록됐는데 Fail 판정이 남은 단계
+ const leftbar=leftover?`<div class="leftbar"><b>Fail 판정 ${vfc}건이 남은 채 통과로 기록된 단계예요.</b> 재측정해서 통과했다면 아래 판정을 고치고, 예외로 통과시켰다면 메모에 사유를 남겨 주세요.</div>`:"";
+ const dn=days(p.updated),ar=activeRA(p),asum=ar?riskSum(ar):null;
+ const hist=p.attempt>1?`<div class="hist" role="group" aria-label="시도 이력"><div class="hist-h">시도 이력 <span>· 눌러서 그 시도의 기록을 봐요</span></div>${
+  [...Array(p.attempt)].map((_,k)=>{const a=p.attempt-k,f=fls.find(x=>x.attempt===a),isCur=a===p.attempt;
+   return `<button class="hrow ${a===va?"on":""}" data-vatt="${a}"><span class="ha">시도 ${a}${isCur?" · 현재":""}</span>
+    <span class="hs">${isCur?`${esc(STAGES[p.pos])} 진행 중`:f?`<b class="ff">✗ ${esc(f.stage)}에서 Fail</b>`:"<b class=\"ff\">✗ Fail로 끝남</b>"}</span>
+    <span class="hd">${f?esc(f.date):""}</span><span class="hr">${isCur?"":f&&f.reason?esc(f.reason):"사유 미기록"}</span>
+    <span class="hb">${a===va?"보는 중":"기록 보기"}</span></button>`}).join("")}</div>`:"";
+ const pastbar=past?`<div class="pastbar"><div><b>시도 ${va}의 기록을 보고 있어요.</b> ${fl?`${esc(fl.date)} · ${esc(fl.stage)}에서 Fail${fl.reason?` · ${esc(fl.reason)}`:""}`:""}</div>
+  <button data-vatt="${p.attempt}">현재 시도(${p.attempt})로 돌아가기</button></div>`:"";
+ (target||$("detail")).innerHTML=`<div class="crumb"><button class="back" data-back="1">← 전체 프로젝트</button>
+  <label class="small" for="jump">다른 프로젝트</label><select id="jump" style="width:auto;max-width:100%">${D.projects.map(x=>`<option value="${x.id}" ${x.id===p.id?"selected":""}>${esc(x.name||"(이름 없음)")}</option>`).join("")}</select></div>
+ <section class="head" aria-label="프로젝트 현황">
+ <div class="head-top"><input class="name" id="pname" type="text" data-p="name" placeholder="프로젝트 이름" aria-label="프로젝트 이름" value="${esc(p.name)}">
+  <button class="pb" data-xlsx="|">프로젝트 전체 엑셀 ↓</button></div>
+ ${hist}
+ ${stepper(p,vi,va,fIdx)}
+ ${p.pos===LAST?`<div class="banner-p">3연속 통과 완료. 양산 이관 회의가 가능해요.</div>`:""}
+ <div class="strip">
+  <div class="kpi"><span class="k">연속 통과</span><span class="pips">${[0,1,2].map(i=>`<span class="pip ${i<pc?"on":""}"></span>`).join("")}</span><b>${pc}/3</b></div>
+  <div class="kpi"><span class="k">시도</span><b>${p.attempt}</b>${p.attempt>1?`<span class="k">Fail 후 재시작</span>`:""}</div>
+  ${dn==null?"":`<div class="kpi"><span class="k">마지막 갱신</span><b>${dn===0?"오늘":dn+"일 전"}</b></div>`}
+  ${asum&&asum.total?`<div class="kpi"><span class="k">열린 Risk</span><b>${asum.open}</b>${asum.hi?`<span class="lvp">높음 ${asum.hi}</span>`:""}</div>`:""}
+  <div class="acts-main">
+   ${past?`<span class="k small">통과·Fail 기록은 현재 시도에서만 할 수 있어요</span>`:`${p.pos<LAST?`<button class="pass" data-pass="1">✓ '${esc(STAGES[p.pos])}' 통과 → ${esc(next)}</button>`:""}
+   ${inTrial?`<button class="failb" data-fail="1">✗ Fail · 1차 R/A부터 다시</button>`:""}`}
+  </div>
+ </div>
+ <div class="memo"><label for="pnote">재개 메모 · 어디까지 했고, 다음에 뭘 해야 하나</label>
+  <textarea id="pnote" data-p="note" placeholder="예: 2차 R/A 자료 작성 중. 다음: 회의 일정 확인 후 2차 Trial production 의뢰">${esc(p.note)}</textarea></div>
+ <details ${p.log.length?"":"hidden"}><summary>진행 기록 ${p.log.length}건</summary><div class="log">${p.log.map(l=>`<div><span class="small">${esc(l.date)}</span>${esc(l.text)}</div>`).join("")}</div></details>
+ </section>
+ <section class="sheet" aria-label="단계별 상세">
+  <div class="sheet-h"><div><div class="eyebrow">단계별 상세 · 위 흐름선에서 고른 단계${p.attempt>1?` · 시도 ${va}`:""}</div>
+   <h2>${esc(vs)} <span class="tag ${whereCls}">${where}</span>${vfc?`<span class="tag miss">평가 Fail ${vfc}건</span>`:""}${leftover?`<span class="tag miss">⚠ Fail 남은 채 통과</span>`:""}</h2></div>
+   <div class="acts"><button data-xlsx="${esc(vs)}|${ra}">이 단계 엑셀 ↓</button></div></div>
+  ${pastbar}${leftbar}
+  <div class="sheet-b">${renderRec(p,vr)}</div>
+ </section>
+ ${cmpBox(p)}
+ <div class="foot"><span>입력을 잘못했을 때</span>
+  <select id="setpos" aria-label="단계 직접 고치기">${STAGES.map((s,i)=>`<option value="${i}" ${i===p.pos?"selected":""}>${esc(s)}</option>`).join("")}</select>
+  <span>로 현재 단계를 직접 바꾸기</span><button class="d" data-delp="1" style="margin-left:auto">이 프로젝트 삭제</button></div>`;
+}
+/* ---------- 실험 데이터 화면: 모든 프로젝트의 '제품 설계' 실험을 한 표로 합쳐서 보기 (ML용) ---------- */
+let screen="dash",dataProj=new Set(),dataSort={k:null,dir:1},dataX=null,dataY=null,dataStar=false,dataPage=1,dataFlag=null,dataAll=false;
+const PAGE=10;   // 합친 표는 10건씩
+const sn=n=>String(n).replace(/^\[예시\]\s*(차량용 윈도우 필름\s*)?/,"[예시] ");   // 긴 예시 이름은 '[예시] WF-C70 (…)' 로 줄여서 보여 준다
+const PCOL=["#0a8fb5","#2fa86a","#d98a1f","#c9483f","#7c6bd6","#4a8f9b","#a05a9b","#6f8f2f"];
+function mlData(){
+ const cols=[],byKey=new Map(),rows=[],excluded=[];
+ const col=(grp,c)=>{const key=grp+"|"+norm(c.name)+"|"+norm(c.unit);
+  if(!byKey.has(key)){const o={key,grp,name:c.name||"(이름 없음)",unit:c.unit||""};byKey.set(key,o);cols.push(o)}return byKey.get(key)};
+ D.projects.forEach((p,pi)=>p.records.filter(r=>r.stage===DESIGN&&r.exp).forEach(rec=>{
+  const ex=rec.exp;
+  ex.runs.forEach((u,n)=>{
+   const row={pid:p.id,pi,p,rec,run:u,proj:sn(p.name||"(이름 없음)"),n:n+1,date:u.date||"",star:!!u.star,note:u.note||"",vals:{},ref:{}};
+   [["X",ex.x,u.x],["Y",ex.y,u.y]].forEach(([g,cs,vs])=>cs.forEach(c=>{const o=col(g,c),v=(vs||{})[c.id];
+    row.ref[o.key]={grp:g,cid:c.id};
+    if(v!==undefined&&String(v).trim()!=="")row.vals[o.key]=v}));
+   (u.excl?excluded:rows).push(row)})}));
+ const xs=cols.filter(c=>c.grp==="X"),ys=cols.filter(c=>c.grp==="Y");
+ return{cols:[...xs,...ys],xs,ys,rows,excluded}}
+const colLabel=c=>c.name+(c.unit?` (${c.unit})`:"");
+function scatter(rows,xc,yc){
+ const pts=rows.map(r=>({x:num(r.vals[xc.key]),y:num(r.vals[yc.key]),r})).filter(q=>Number.isFinite(q.x)&&Number.isFinite(q.y));
+ if(!pts.length)return`<div class="empty">두 축에 모두 값이 있는 실험이 없어요.</div>`;
+ const W=640,H=340,L=60,R=16,T=14,B=46,iw=W-L-R,ih=H-T-B;
+ const ext=a=>{let lo=Math.min(...a),hi=Math.max(...a);if(lo===hi){lo-=1;hi+=1}const pad=(hi-lo)*.08;return[lo-pad,hi+pad]};
+ const[x0,x1]=ext(pts.map(q=>q.x)),[y0,y1]=ext(pts.map(q=>q.y));
+ const X=v=>L+iw*(v-x0)/(x1-x0),Y=v=>T+ih*(1-(v-y0)/(y1-y0));
+ let s=`<svg class="sc" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(colLabel(xc))}과 ${esc(colLabel(yc))}의 관계">`;
+ for(let k=0;k<=4;k++){const vx=x0+(x1-x0)*k/4,vy=y0+(y1-y0)*k/4;
+  s+=`<line x1="${X(vx)}" x2="${X(vx)}" y1="${T}" y2="${T+ih}" class="grid"/><text x="${X(vx)}" y="${T+ih+16}" text-anchor="middle">${fmt(vx)}</text>
+   <line x1="${L}" x2="${L+iw}" y1="${Y(vy)}" y2="${Y(vy)}" class="grid"/><text x="${L-8}" y="${Y(vy)+3}" text-anchor="end">${fmt(vy)}</text>`}
+ s+=`<text x="${L+iw/2}" y="${H-6}" text-anchor="middle" class="ax">${esc(colLabel(xc))}</text><text x="14" y="${T+ih/2}" text-anchor="middle" class="ax" transform="rotate(-90 14 ${T+ih/2})">${esc(colLabel(yc))}</text>`;
+ pts.forEach(q=>{const c=PCOL[q.r.pi%PCOL.length];
+  s+=`<circle cx="${X(q.x)}" cy="${Y(q.y)}" r="${q.r.star?7:5}" fill="${c}" class="dp ${q.r.star?"st":""}"><title>${esc(q.r.proj)} · 실험 ${q.r.n}${q.r.star?" ★":""}\n${esc(colLabel(xc))}: ${q.x}\n${esc(colLabel(yc))}: ${q.y}</title></circle>`});
+ s+=`</svg>`;
+ let r="";if(pts.length>2){const mx=mean(pts.map(q=>q.x)),my=mean(pts.map(q=>q.y));
+  const sxy=pts.reduce((a,q)=>a+(q.x-mx)*(q.y-my),0),sxx=pts.reduce((a,q)=>a+(q.x-mx)**2,0),syy=pts.reduce((a,q)=>a+(q.y-my)**2,0);
+  if(sxx>0&&syy>0)r=sxy/Math.sqrt(sxx*syy)}
+ return{svg:s,n:pts.length,r}}
+/* 열 하나의 분포 요약: 결측 · 숫자 아닌 값 · 이상치(같은 프로젝트 안에서 IQR 3배 밖). 값이 거의 같은 열(IQR 0)은 중앙값에서 표준편차의 3배 밖을 이상치로 본다.
+   사용자가 '정상 값이에요/비어 있어도 돼요'로 확인한 값(run.review[열]=keep)은 확인 대기에서 빼고 따로 센다 */
+const kept=(r,key)=>(r.run.review||{})[key]==="keep";
+function colStats(rows,c){
+ const vals=[],nonnum=[],keptNon=[],missRows=[],keptMiss=[];
+ rows.forEach(r=>{const v=r.vals[c.key];
+  if(v===undefined){(kept(r,c.key)?keptMiss:missRows).push(r);return}
+  const n=num(v);Number.isFinite(n)?vals.push({n,r,v}):(kept(r,c.key)?keptNon:nonnum).push({v,r})});
+ const a=vals.map(x=>x.n).sort((x,y)=>x-y),n=a.length,o={c,n,miss:missRows.length,missRows,keptMiss:keptMiss.length,nonnum,keptNon:keptNon.length,vals,out:[],keptOut:[],lo:null,hi:null};
+ if(!n)return o;
+ const q=p=>{const i=(n-1)*p,l=Math.floor(i),h=Math.ceil(i);return a[l]+(a[h]-a[l])*(i-l)};
+ o.min=a[0];o.max=a[n-1];o.q1=q(.25);o.med=q(.5);o.q3=q(.75);o.mean=mean(a);o.sd=sd(a);
+ // 이상치는 '같은 프로젝트' 안에서 비교한다. 프로젝트마다 목표 사양이 달라 합쳐서 보면 정상 값도 튀어 보이기 때문이다.
+ // 한 프로젝트의 값이 5개 미만이면 비교가 불안정하므로 전체 값의 범위를 쓴다.
+ const fence=arr=>{const b=[...arr].sort((x,y)=>x-y),m=b.length;if(m<4)return null;
+  const qq=p=>{const i=(m-1)*p,l=Math.floor(i),h=Math.ceil(i);return b[l]+(b[h]-b[l])*(i-l)},q1=qq(.25),q3=qq(.75),md=qq(.5),iq=q3-q1,s=sd(b);
+  // 설계 실험은 조건이 100·105·110처럼 몇 가지 값으로 정해지므로, 조금 벗어난 값까지 잡으면 정상 조건이 이상치로 잡힌다. 오타(자릿수·단위 실수) 수준으로 크게 벗어난 값만 잡는다(IQR의 3배)
+  return iq>0?{lo:q1-3*iq,hi:q3+3*iq,md}:s>0?{lo:md-3*s,hi:md+3*s,md}:null};
+ o.gfence=fence(a);o.perProject=false;
+ const byP={};vals.forEach(x=>(byP[x.r.pid]=byP[x.r.pid]||[]).push(x));
+ const fp={};Object.entries(byP).forEach(([pid,g])=>{if(g.length>=5){const f=fence(g.map(x=>x.n));if(f){fp[pid]=f;o.perProject=true}}});
+ const all=[];
+ // 통계적으로 벗어났더라도 중앙값에서 30%도 안 벗어난 값은 실험 편차로 보고 넘어간다 (자릿수·단위 실수는 보통 몇 배씩 벗어난다)
+ vals.forEach(x=>{const f=fp[x.r.pid]||o.gfence;if(!f)return;if((x.n<f.lo||x.n>f.hi)&&Math.abs(x.n-f.md)>=0.3*Math.abs(f.md)){x.lo=f.lo;x.hi=f.hi;all.push(x)}});
+ o.lo=o.gfence?o.gfence.lo:null;o.hi=o.gfence?o.gfence.hi:null;
+ o.out=all.filter(x=>!kept(x.r,c.key));o.keptOut=all.filter(x=>kept(x.r,c.key));
+ return o}
+function histo(st){
+ const W=300,H=140,L=10,R=10,iw=W-L-R,base=84,top=10,ph=base-top,by=122;
+ const a=st.vals.map(x=>x.n),mn=st.min,mx=st.max,span=mx-mn,k=span===0?1:Math.min(12,Math.max(5,Math.ceil(Math.sqrt(a.length))));
+ const outR=new Set(st.out.map(x=>x.r)),isOut=v=>false,norm_=new Array(k).fill(0),outc=new Array(k).fill(0);
+ st.vals.forEach(x=>{const v=x.n,b=span===0?0:Math.min(k-1,Math.floor((v-mn)/span*k));(outR.has(x.r)?outc:norm_)[b]++});
+ const mc=Math.max(1,...norm_.map((x,i)=>x+outc[i])),bw=iw/k,X=v=>L+(span===0?iw/2:iw*(v-mn)/span);
+ let s=`<svg class="hs" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(colLabel(st.c))} 분포">`;
+ for(let i=0;i<k;i++){const n1=norm_[i],n2=outc[i],h1=ph*n1/mc,h2=ph*n2/mc,x=L+i*bw+1,w=Math.max(2,bw-2);
+  if(n1)s+=`<rect x="${x}" y="${base-h1}" width="${w}" height="${h1}" class="hb"/>`;
+  if(n2)s+=`<rect x="${x}" y="${base-h1-h2}" width="${w}" height="${h2}" class="ho"/>`}
+ s+=`<line x1="${L}" x2="${L+iw}" y1="${base}" y2="${base}" class="ax"/>
+  <text x="${L}" y="${base+13}" text-anchor="start">${fmt(mn)}</text><text x="${L+iw}" y="${base+13}" text-anchor="end">${fmt(mx)}</text>${span&&X(st.med)-L>58&&L+iw-X(st.med)>58?`<text x="${X(st.med)}" y="${base+13}" text-anchor="middle" class="md">중앙 ${fmt(st.med)}</text>`:""}`;
+ const inn=st.vals.filter(x=>!outR.has(x.r)).map(x=>x.n),wl=Math.min(...inn),wh=Math.max(...inn);
+ s+=`<line x1="${X(wl)}" x2="${X(wh)}" y1="${by}" y2="${by}" class="wk"/><rect x="${X(st.q1)}" y="${by-7}" width="${Math.max(2,X(st.q3)-X(st.q1))}" height="14" class="bx"/>
+  <line x1="${X(st.med)}" x2="${X(st.med)}" y1="${by-7}" y2="${by+7}" class="mdl"/>`;
+ st.out.forEach(o=>{s+=`<circle cx="${X(o.n)}" cy="${by}" r="4" class="od"><title>이상치 ${o.n} · ${esc(o.r.proj)} 실험 ${o.r.n}</title></circle>`});
+ return s+`</svg>`}
+function pageList(cur_,n){const s=new Set([1,n,cur_,cur_-1,cur_+1,cur_-2,cur_+2].filter(x=>x>=1&&x<=n)),a=[...s].sort((x,y)=>x-y),o=[];a.forEach((x,i)=>{if(i&&x-a[i-1]>1)o.push("…");o.push(x)});return o}
+/* 확인 대기열: 이상치·숫자 아님·결측 값 하나가 카드 하나. 같은 프로젝트의 같은 열 값과 비교해 오타 후보를 제안한다 */
+let QUEUE=[],PROC=[],EXCL=[],dataQType="all";
+function buildQueue(base,stats){
+ const q=[];
+ stats.forEach(st=>{
+  st.nonnum.forEach(x=>q.push({type:"nonnum",st,row:x.r,key:st.c.key,v:x.v}));
+  st.out.forEach(x=>q.push({type:"out",st,row:x.r,key:st.c.key,v:x.v,n:x.n,lo:x.lo,hi:x.hi}));
+  st.missRows.forEach(r=>q.push({type:"miss",st,row:r,key:st.c.key,v:""}))});
+ const ord={nonnum:0,out:1,miss:2};
+ q.sort((a,b)=>ord[a.type]-ord[b.type]||a.row.proj.localeCompare(b.row.proj,"ko")||a.row.n-b.row.n);
+ q.forEach(it=>{ // 같은 프로젝트의 이 열 값(자기 자신 제외)
+  const others=base.filter(r=>r.pid===it.row.pid&&r!==it.row).map(r=>num(r.vals[it.key])).filter(Number.isFinite).sort((a,b)=>a-b);
+  it.ps=others.length?{n:others.length,min:others[0],max:others[others.length-1],med:others[Math.floor((others.length-1)/2)]}:null;
+  it.sugg="";
+  if(it.type==="nonnum"){const m=/-?\d+(?:\.\d+)?/.exec(String(it.v));if(m)it.sugg=m[0]}
+  else if(it.type==="out"&&it.ps&&it.ps.n>=3){
+   const pad=Math.max(Math.abs(it.ps.max-it.ps.min)*.1,Math.abs(it.ps.med)*.05);
+   for(const f of [10,.1,100,.01,1000,.001]){const c=it.n*f;if(c>=it.ps.min-pad&&c<=it.ps.max+pad){it.sugg=String(+c.toFixed(3));break}}}});
+ return q}
+const Q_LAB={out:"이상치",nonnum:"숫자 아님",miss:"결측"};
+function qCard(it,i,cols){
+ const r=it.row,c=it.st.c,others=cols.filter(x=>x.key!==it.key&&r.vals[x.key]!==undefined).map(x=>`<span class="qc"><i>${esc(x.name)}</i>${esc(r.vals[x.key])}<small>${esc(x.unit)}</small></span>`).join("");
+ const ref=it.ps?`같은 프로젝트의 이 열 <b>${fmt(it.ps.min)} ~ ${fmt(it.ps.max)}</b> (중앙 ${fmt(it.ps.med)}, ${it.ps.n}건)`:`같은 프로젝트에 비교할 값이 없어요`;
+ const rng=it.lo!==undefined?` · 이 값의 정상 범위 ${fmt(it.lo)} ~ ${fmt(it.hi)}`:"";
+ const can=!!r.ref[it.key];
+ return `<div class="qi q-${it.type}"><div class="qi-h"><span class="qtag q-${it.type}">${Q_LAB[it.type]}</span><b>${esc(c.name)}</b>
+   <span class="qv">${it.type==="miss"?"비어 있음":esc(it.v)}</span><small>${esc(c.unit)}</small>
+   <span class="qloc">${esc(r.proj)} · 실험 ${r.n}${r.date?` · ${esc(r.date)}`:""}${r.star?" · ★ 기준 실험":""}</span></div>
+  <div class="qi-b"><div class="small">이 실험의 다른 값</div><div class="qcs">${others||`<span class="small">입력된 다른 값이 없어요</span>`}</div>
+   ${r.note?`<div class="small" style="margin-top:4px">메모 · ${esc(r.note)}</div>`:""}
+   ${r.star?`<div class="small" style="margin-top:4px">★ 기준 실험이에요. 제외해도 ML 데이터에서만 빠지고, 프로젝트의 설계 기준은 그대로예요.</div>`:""}
+   <div class="qref">${ref}${rng}</div></div>
+  <div class="qi-a">${can?`<div class="qfix"><input type="text" id="qf${i}" value="${esc(it.sugg)}" placeholder="올바른 값" aria-label="올바른 값"><button class="p" data-qfix="${i}">${it.type==="miss"?"값 입력":"수정해서 저장"}</button>${it.sugg?`<span class="small">${it.type==="nonnum"?"글자를 뺀 값":"오타로 보여 이 값을 제안해요"}</span>`:""}</div>`:`<span class="small">이 프로젝트에는 이 열이 없어서 입력할 수 없어요</span>`}
+   <div class="qbtns"><button data-qkeep="${i}">${it.type==="miss"?"비어 있어도 돼요":"정상 값이에요 · 유지"}</button><button class="dng-o" data-qexcl="${i}" title="이 실험 전체를 ML 데이터와 분포에서 뺍니다. 프로젝트 기록은 지워지지 않아요">이 실험 제외</button></div></div></div>`}
+function renderData(){
+ const {cols,xs,ys,rows,excluded}=mlData();
+ const pids=[...new Set(rows.map(r=>r.pid))];
+ const sel_=dataProj.size?dataProj:null;
+ const base=rows.filter(r=>(!sel_||sel_.has(r.pid))&&(!dataStar||r.star));
+ const stats=cols.map(c=>colStats(base,c)),stOf=Object.fromEntries(stats.map(s=>[s.c.key,s]));
+ const outSet={},nnSet={};stats.forEach(s=>{outSet[s.c.key]=new Map(s.out.map(x=>[x.r,x]));nnSet[s.c.key]=new Set(s.nonnum.map(x=>x.r))});
+ const issueCols=stats.filter(s=>s.miss||s.out.length||s.nonnum.length);
+ QUEUE=buildQueue(base,stats);
+ const qShown=QUEUE.map((it,i)=>({it,i})).filter(x=>dataQType==="all"||x.it.type===dataQType);
+ const qCnt=t=>QUEUE.filter(x=>x.type===t).length;
+ // 처리한 항목(유지로 확인한 값·제외한 실험)
+ PROC=[];D.projects.forEach(p=>p.records.filter(r=>r.stage===DESIGN&&r.exp).forEach(rec=>rec.exp.runs.forEach((u,n)=>Object.keys(u.review||{}).forEach(k=>{const c=cols.find(x=>x.key===k);if(c)PROC.push({p,run:u,n:n+1,c,key:k})}))));
+ EXCL=excluded;
+ let shown=base;
+ const fc=dataFlag&&stOf[dataFlag];
+ if(fc)shown=base.filter(r=>r.vals[dataFlag]===undefined||outSet[dataFlag].has(r)||nnSet[dataFlag].has(r));
+ if(dataSort.k){const k=dataSort.k,get=r=>k==="proj"?r.proj:k==="n"?r.n:k==="date"?r.date:r.vals[k];
+  shown=[...shown].sort((a,b)=>{const A=get(a),B=get(b),an=num(A),bn=num(B);
+   if(A===undefined||A==="")return 1;if(B===undefined||B==="")return -1;
+   return(Number.isFinite(an)&&Number.isFinite(bn)?an-bn:String(A).localeCompare(String(B),"ko"))*dataSort.dir})}
+ const pages=Math.max(1,Math.ceil(shown.length/PAGE));dataPage=Math.min(Math.max(dataPage,1),pages);
+ const slice=dataAll?shown:shown.slice((dataPage-1)*PAGE,dataPage*PAGE),from=shown.length?(dataPage-1)*PAGE+1:0,to=Math.min(dataPage*PAGE,shown.length);
+ const fill=c=>base.length?Math.round(100*base.filter(r=>r.vals[c.key]!==undefined).length/base.length):0;
+ const cells=cols.length*base.length,filled_=base.reduce((a,r)=>a+cols.filter(c=>r.vals[c.key]!==undefined).length,0);
+ const xc=cols.find(c=>c.key===dataX)||xs[0]||cols[0],yc=cols.find(c=>c.key===dataY)||ys[0]||cols[1]||cols[0];
+ const sc=xc&&yc?scatter(base,xc,yc):null;
+ const opt=cur_=>cols.map(c=>`<option value="${esc(c.key)}" ${c.key===cur_?"selected":""}>${c.grp==="X"?"입력":"결과"} · ${esc(colLabel(c))}</option>`).join("");
+ const arrow=k=>dataSort.k===k?(dataSort.dir>0?" ▲":" ▼"):"";
+ const projColor=pid=>PCOL[D.projects.findIndex(p=>p.id===pid)%PCOL.length];
+ const tiles=[["실험 수",base.length+(base.length!==rows.length?` / ${rows.length}`:"")],["프로젝트",new Set(base.map(r=>r.pid)).size],["입력 변수",xs.length],["결과 항목",ys.length],["값이 채워진 비율",cells?Math.round(100*filled_/cells)+"%":"-"],["확인할 값",QUEUE.length+"건"]];
+ const head2=cols.map(c=>`<th class="${c.grp==="X"?"gx2":"gy2"}"><button class="th" data-dsortc="${esc(c.key)}">${esc(c.name)}${c.unit?` <small>${esc(c.unit)}</small>`:""}${arrow(c.key)}</button></th>`).join("");
+ const fillRow=cols.map(c=>{const f=fill(c);return`<td><div class="fb" title="${base.length}건 중 ${f}% 입력됨"><i style="width:${f}%" class="${f<60?"lo":""}"></i></div><span>${f}%</span></td>`}).join("");
+ const body=slice.map(r=>`<tr><td class="stk"><i class="pd" style="background:${projColor(r.pid)}"></i>${esc(r.proj)}</td><td class="num">${r.n}</td><td class="num">${esc(r.date)}</td><td>${r.star?"★":""}</td>${
+  cols.map(c=>{const v=r.vals[c.key];return v===undefined?`<td class="num ${kept(r,c.key)?"":"miss"}" title="${kept(r,c.key)?"비어 있어도 된다고 확인한 칸이에요":"값이 비어 있어요"}">—</td>`
+   :`<td class="num ${outSet[c.key].has(r)?"o":nnSet[c.key].has(r)?"nn":""}" ${outSet[c.key].has(r)?`title="이상치일 수 있어요 (이 프로젝트의 정상 범위 ${fmt(outSet[c.key].get(r).lo)}~${fmt(outSet[c.key].get(r).hi)})"`:nnSet[c.key].has(r)?`title="숫자가 아닌 값이에요"`:""}>${esc(v)}</td>`}).join("")}</tr>`).join("");
+ const pager=!dataAll&&(pages>1||shown.length)?`<div class="pager"><span class="small">${from}–${to} / ${shown.length}건 · ${dataPage} / ${pages} 쪽</span><div class="pg">
+   <button data-dpage="${dataPage-1}" ${dataPage<=1?"disabled":""}>‹ 이전</button>${pageList(dataPage,pages).map(x=>x==="…"?`<span class="pgd">…</span>`:`<button class="pgb ${x===dataPage?"on":""}" data-dpage="${x}" ${x===dataPage?'aria-current="page"':""}>${x}</button>`).join("")}<button data-dpage="${dataPage+1}" ${dataPage>=pages?"disabled":""}>다음 ›</button></div></div>`:"";
+ const dcards=stats.map(st=>{const iss=st.miss||st.out.length||st.nonnum.length,chk=st.keptMiss+st.keptNon+st.keptOut.length;
+  const tags=`${st.miss?`<span class="vtag vwarn">결측 ${st.miss}</span>`:""}${st.out.length?`<span class="vtag vbad">이상치 ${st.out.length}</span>`:""}${st.nonnum.length?`<span class="vtag vbad">숫자 아님 ${st.nonnum.length}</span>`:""}${iss?"":`<span class="vtag vok">이상 없음</span>`}${chk?`<span class="vtag vnone" title="확인하고 유지하기로 한 값">확인함 ${chk}</span>`:""}`;
+  return `<div class="dcard ${iss?"iss":""}"><div class="dc-h"><b>${esc(st.c.name)}</b><small>${esc(st.c.unit)}</small><span class="dc-g">${st.c.grp==="X"?"입력":"결과"}</span></div><div class="dc-t">${tags}</div>
+   ${st.n?histo(st):`<div class="empty" style="padding:22px 8px">숫자 값이 없어요</div>`}
+   <div class="small dc-s">${st.n?`n ${st.n} · 평균 ${fmt(st.mean)} · 중앙값 ${fmt(st.med)} · 범위 ${fmt(st.min)}~${fmt(st.max)}${st.perProject?`<br>이상치는 같은 프로젝트 안에서 비교해 판정해요`:st.lo!==null?`<br>정상 범위 ${fmt(st.lo)} ~ ${fmt(st.hi)}`:""}`:""}${st.nonnum.length?`<br>숫자가 아닌 값: ${[...new Set(st.nonnum.map(x=>x.v))].slice(0,4).map(esc).join(", ")}`:""}</div>
+   ${iss?`<button class="${dataFlag===st.c.key?"p":""}" data-dflag="${esc(st.c.key)}">${dataFlag===st.c.key?"표에서 보는 중":"문제 있는 행 보기"}</button>`:""}</div>`}).join("");
+ const proc=`<details class="fold" data-ui="qproc" ${isOpen("qproc",false)?"open":""}><summary>처리한 항목 <span class="small">제외한 실험 ${EXCL.length}건 · 유지로 확인한 값 ${PROC.length}건 · 눌러서 되돌릴 수 있어요</span></summary>
+   ${EXCL.length?`<div class="plist2"><div class="small" style="margin:6px 0 2px">제외한 실험 (ML 데이터와 분포에서 빠져 있어요)</div>${EXCL.map((r,i)=>`<div class="prow"><span>${esc(r.proj)} · 실험 ${r.n}${r.date?` · ${esc(r.date)}`:""}</span><button data-qrestore="${i}">제외 취소</button></div>`).join("")}</div>`:""}
+   ${PROC.length?`<div class="plist2"><div class="small" style="margin:8px 0 2px">정상으로 확인한 값</div>${PROC.map((x,i)=>`<div class="prow"><span>${esc(sn(x.p.name))} · 실험 ${x.n} · ${esc(x.c.name)} = ${esc(valOf(x))||"비어 있음"}</span><button data-qundo="${i}">다시 확인 대기로</button></div>`).join("")}</div>`:""}
+   ${!EXCL.length&&!PROC.length?`<div class="small" style="padding:8px 0">아직 처리한 항목이 없어요.</div>`:""}</details>`;
+ $("detail").innerHTML=`<div class="crumb"><button class="back" data-back="1">← 전체 프로젝트</button></div>
+ <div class="dash-h"><div><h2>실험 데이터</h2><p class="sub">모든 프로젝트의 '제품 설계' 실험을 한 표로 합친 것이에요. 이 표가 ML에 쓰는 데이터예요.</p></div>
+  <div class="acts"><a class="dl" href="/api/ml?fmt=xlsx">엑셀 ↓</a><a class="dl" href="/api/ml?fmt=csv">CSV ↓</a></div></div>
+ ${rows.length||EXCL.length?`<div class="tiles">${tiles.map(([l,n])=>`<div class="tile static"><span class="tn">${n}</span><span class="tl">${l}</span></div>`).join("")}</div>
+ <div class="dfilters"><span class="small">프로젝트</span>${pids.map(pid=>{const p=D.projects.find(x=>x.id===pid);
+   return`<button class="chipf ${(!sel_||sel_.has(pid))?"on":""}" data-dp="${pid}"><i class="pd" style="background:${projColor(pid)}"></i>${esc(sn(p?.name||""))} <small>${rows.filter(r=>r.pid===pid).length}</small></button>`}).join("")}
+   <label class="chk"><input type="checkbox" id="dstar" ${dataStar?"checked":""}> ★ 기준 실험만</label></div>
+ <section class="sheet review" style="margin-top:14px"><div class="sheet-h"><div><div class="eyebrow">데이터 점검</div><h2 style="font-size:17px">확인할 값 ${QUEUE.length}건</h2></div>
+   <div class="seg" role="group" aria-label="종류">${[["all","전체",QUEUE.length],["out","이상치",qCnt("out")],["nonnum","숫자 아님",qCnt("nonnum")],["miss","결측",qCnt("miss")]].map(([k,l,n])=>`<button class="${dataQType===k?"on":""}" data-qtype="${k}">${l} ${n}</button>`).join("")}</div></div>
+  <div class="sheet-b" style="padding-top:12px"><div class="small" style="margin-bottom:10px">값마다 <b>수정</b>하거나, 맞는 값이면 <b>유지</b>하거나, 믿기 어려우면 그 <b>실험을 제외</b>해 주세요. 제외해도 프로젝트 기록은 지워지지 않고, 아래 '처리한 항목'에서 되돌릴 수 있어요.</div>
+   ${qShown.length?`<div class="qlist">${qShown.map(x=>qCard(x.it,x.i,cols)).join("")}</div>`:`<div class="banner" style="margin:0">${QUEUE.length?"이 종류에서는 확인할 값이 없어요.":"확인할 값이 없어요. 결측과 이상치를 모두 처리했거나 처음부터 없었어요."}</div>`}
+   ${proc}</div></section>
+ <section class="sheet" style="margin-top:14px"><div class="sheet-h"><div><div class="eyebrow">관계 보기</div><h2 style="font-size:17px">두 변수를 골라서 점으로 보기</h2></div>
+  <div class="acts"><label class="small" for="dx">가로(X)</label><select id="dx" style="width:auto;max-width:240px">${opt(xc?.key)}</select><label class="small" for="dy">세로(Y)</label><select id="dy" style="width:auto;max-width:240px">${opt(yc?.key)}</select></div></div>
+  <div class="sheet-b">${sc&&sc.svg?`${sc.svg}<div class="small" style="margin-top:6px">점 ${sc.n}개${sc.r!==""?` · 상관계수 r = <b>${fmt(sc.r)}</b> (−1~1, 0에 가까우면 관계가 약해요)`:""} · 색은 프로젝트, 큰 점은 ★ 기준 실험이에요. 점 위에 마우스를 올리면 값이 보여요.</div>`:(sc||`<div class="empty">변수를 선택하세요.</div>`)}</div></section>
+ <section class="sheet" style="margin-top:14px"><div class="sheet-h"><div><div class="eyebrow">합친 표</div><h2 style="font-size:17px">실험 ${shown.length}건${fc?` <span class="tag miss">${esc(colLabel(fc.c))} 문제 행만</span>`:""}</h2></div>
+   <div class="acts">${fc?`<button data-dflagclear="1">필터 해제</button>`:""}<button class="${dataAll?"p":""}" data-dall="1">${dataAll?`${PAGE}건씩 보기`:`전체 ${shown.length}건 한 번에 보기`}</button></div></div>
+  <div class="sheet-b" style="padding-top:14px">
+   <div class="expbar"><div><b>ML 데이터로 내보낼 표</b> <span class="small">실험 ${rows.length}건${EXCL.length?` · 제외한 ${EXCL.length}건은 빠져요`:""} · 위의 프로젝트 필터와 상관없이 전체가 내려가요</span>
+    ${QUEUE.length?`<div class="small bad">⚠ 확인할 값 ${QUEUE.length}건이 아직 남아 있어요. 위 '데이터 점검'에서 처리하면 더 깨끗한 데이터가 돼요</div>`:`<div class="small" style="color:var(--ok)">확인할 값이 없어요. 바로 내려받아도 돼요</div>`}</div>
+    <div class="acts"><a class="dl" href="/api/ml?fmt=xlsx">엑셀 ↓</a><a class="dl" href="/api/ml?fmt=csv">CSV ↓</a></div></div>
+   <div class="small" style="margin:8px 0">${dataAll?`전체 ${shown.length}건을 한 번에 보여요 (표 안에서 스크롤)`:`${PAGE}건씩 보여요`} · 열 이름을 누르면 정렬 · 막대는 값이 입력된 비율 · 붉은 칸은 이상치, 점선 칸은 결측</div>
+   <div class="xwrap ${dataAll?"tall":""}"><table class="xt dtab"><thead>
+   <tr><th rowspan="2" class="stk"><button class="th" data-dsortc="proj">프로젝트${arrow("proj")}</button></th><th rowspan="2"><button class="th" data-dsortc="n">#${arrow("n")}</button></th><th rowspan="2"><button class="th" data-dsortc="date">날짜${arrow("date")}</button></th><th rowspan="2">기준</th>${xs.length?`<th colspan="${xs.length}" class="gx">입력 변수 (Recipe·공정)</th>`:""}${ys.length?`<th colspan="${ys.length}" class="gy">결과</th>`:""}</tr>
+   <tr>${head2}</tr><tr class="fillrow"><td colspan="4" class="stk">값이 채워진 비율</td>${fillRow}</tr></thead><tbody>${body||`<tr><td colspan="${4+cols.length}" class="empty">이 조건에 맞는 실험이 없어요</td></tr>`}</tbody></table></div>${pager}</div></section>
+ <section class="sheet" style="margin-top:14px"><div class="sheet-h"><div><div class="eyebrow">분포 확인</div><h2 style="font-size:17px">잘못 입력된 값이 없는지 열마다 보기</h2></div>
+   <div class="small" style="max-width:520px">막대는 값이 몇 건씩 모여 있는지, 아래 상자는 가운데 50%의 범위예요. <b style="color:var(--bad)">빨간 막대·점</b>은 이상치(같은 프로젝트의 다른 실험과 비교해 사분위 범위의 3배 넘게 벗어난 값)로, 자릿수나 단위 실수 같은 오타일 수 있어요. 결측은 비어 있는 칸 수예요.</div></div>
+  <div class="sheet-b" style="padding-top:14px">${issueCols.length?`<div class="banner soft" style="margin-top:0">확인이 필요한 열 ${issueCols.length}개: ${issueCols.map(s=>`${esc(s.c.name)}${s.miss?` 결측 ${s.miss}`:""}${s.out.length?` 이상치 ${s.out.length}`:""}${s.nonnum.length?` 숫자 아님 ${s.nonnum.length}`:""}`).join(" · ")}</div>`:`<div class="banner" style="margin-top:0">모든 열에서 확인할 결측·이상치가 없어요 (${base.length}건 기준).</div>`}
+   <div class="dgrid">${dcards}</div></div></section>`
+ :`<div class="empty">아직 실험 데이터가 없어요.<br>프로젝트의 '제품 설계' 단계에서 실험 이력에 실험을 입력하면 여기에 모여요.</div>`}`}
+const valOf=x=>{const g=x.c.grp==="X"?"x":"y",ex=x.p.records.find(r=>r.stage===DESIGN&&r.exp)?.exp;if(!ex)return"";const col=ex[g].find(c=>"XY".indexOf(x.c.grp)>=0&&norm(c.name)===norm(x.c.name)&&norm(c.unit)===norm(x.c.unit));return col?String((x.run[g]||{})[col.id]??""):""};
+function render(){const y=window.scrollY;if(screen==="data")renderData();else if(cur())renderDetail();else renderDash();window.scrollTo(0,y)}
+
+async function download(p,stage,attempt){
+ const compareOnly=stage==="";                      // 성능 비교 엑셀 (data-xlsx="|compare")
+ const body={project:{...p,stage_name:STAGES[p.pos],passed_text:`${passed(p)}/3`},stage:stage||null,attempt:stage?attempt:null,
+  compare:stage?null:compareRows(p),compare_only:compareOnly&&attempt==="compare"};
+ try{
+  const res=await fetch("/api/export",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!res.ok)throw 0;
+  const name=decodeURIComponent((res.headers.get("Content-Disposition")||"").split("UTF-8''")[1]||"export.xlsx");
+  const a=document.createElement("a");a.href=URL.createObjectURL(await res.blob());a.download=name;document.body.appendChild(a);a.click();a.remove();
+  toast("엑셀 파일을 내려받았어요: "+name)
+ }catch(e){toast("엑셀 만들기에 실패했어요. 서버가 켜져 있는지 확인하세요")}
+}
+const recOf=(p,id)=>p.records.find(x=>x.id===id);
+function field(t){const p=cur(),r=p.records.find(x=>x.id===t.dataset.r);if(!r)return null;
+ if(t.dataset.t==="note")return[r,"note"];
+ const row=r[t.dataset.t].find(x=>x.id===t.dataset.i);return row?[row,t.dataset.f]:null}
+document.addEventListener("input",e=>{
+ const t=e.target,p=cur();if(!p)return;
+ if(t.dataset.p){p[t.dataset.p]=t.value;touch(p);save()}
+ else if(t.dataset.r){const f=field(t);if(f){f[0][f[1]]=t.value;touch(p);save()}}
+ else if(t.dataset.sp){const sp=p.specs.find(x=>x.id===t.dataset.sp);if(sp){sp[t.dataset.spf]=t.value;touch(p);save()}}
+ else if(t.dataset.kr){const r=recOf(p,t.dataset.kr),k=r?.risks.find(x=>x.id===t.dataset.ki);if(k){k[t.dataset.kf]=t.value;touch(p);save()}}
+ else if(t.dataset.dr){const r=recOf(p,t.dataset.dr);if(r){r.decision[t.dataset.df]=t.value;touch(p);save()}}
+ else if(t.dataset.sr){const r=recOf(p,t.dataset.sr),l=r?.structure.find(x=>x.id===t.dataset.si);if(l){l[t.dataset.sf]=t.value;touch(p);save()}}
+ else if(t.dataset.cr){const r=recOf(p,t.dataset.cr),c=r?.exp[t.dataset.ck].find(x=>x.id===t.dataset.ci);if(c){c[t.dataset.cf]=t.value;touch(p);save()}}
+ else if(t.dataset.ur){const r=recOf(p,t.dataset.ur),u=r?.exp.runs.find(x=>x.id===t.dataset.ui);
+  if(u){const k=t.dataset.uk;if(k==="meta")u[t.dataset.uc]=t.value;else{u[k]=u[k]||{};u[k][t.dataset.uc]=t.value}touch(p);save()}}
+});
+document.addEventListener("toggle",e=>{const k=e.target.dataset?.ui;if(k)ui[k]=e.target.open},true);   // toggle은 버블링되지 않아 capture로 받는다
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.classList?.contains("drow"))e.target.click()});
+document.addEventListener("change",e=>{
+ const t=e.target,p=cur();
+ if(t.id==="dsort"){dashSort=t.value;render();return}
+ if(t.id==="dx"){dataX=t.value;render();return}
+ if(t.id==="dy"){dataY=t.value;render();return}
+ if(t.id==="dstar"){dataStar=t.checked;dataPage=1;render();return}
+ if(t.id==="jump"){sel=t.value;screen="dash";render();window.scrollTo(0,0);return}
+ if(!p)return;
+ if(t.id==="setpos"){const to=+t.value;log(p,`단계를 직접 변경: ${STAGES[p.pos]} → ${STAGES[to]}`);p.pos=to;resetView(p);touch(p);save();render()}
+ else if(t.dataset.sp){syncAndRefresh(p);if(t.dataset.spf==="spec")t.classList.toggle("invalid",!!t.value.trim()&&!parseSpec(t.value))}
+ else if(t.dataset.r&&t.dataset.t==="evals"&&["item","spec","value","unit"].includes(t.dataset.f)){syncAndRefresh(p)}
+ else if(t.dataset.f==="result"){render()}   // 판정 색·Fail 건수 갱신
+ else if(t.dataset.p==="tol"){render()}
+ else if((t.dataset.kr||t.dataset.dr)&&t.tagName==="SELECT"){render()}   // 위험도·상태·결정을 바꾸면 요약을 다시 계산      // 허용 편차를 바꾸면 판정·그래프 다시 계산
+});
+document.addEventListener("click",e=>{
+ // 버튼 안의 글자·아이콘(span)을 눌러도 그 버튼을 누른 것으로 처리한다
+ const t=(e.target.closest&&e.target.closest("button"))||e.target,p=cur(),d=t.dataset,rowSel=t.closest("[data-sel]"),back=t.closest("[data-back]");
+ if(t.id==="add"){const n={id:uid(),name:"",pos:0,attempt:1,note:"",updated:today(),records:[],log:[],specs:[]};D.projects.unshift(n);sel=n.id;save();render();document.querySelector(".name").focus()}
+ else if(back){sel=null;screen="dash";render();window.scrollTo(0,0)}
+ else if(d.data){sel=null;screen="data";render();window.scrollTo(0,0)}
+ else if(d.dp){dataProj.has(d.dp)?dataProj.delete(d.dp):dataProj.add(d.dp);if(dataProj.size===0||dataProj.size===new Set(mlData().rows.map(r=>r.pid)).size)dataProj.clear();dataPage=1;render()}
+ else if(d.dsortc){dataSort=dataSort.k===d.dsortc?{k:d.dsortc,dir:-dataSort.dir}:{k:d.dsortc,dir:1};dataPage=1;render()}
+ else if(d.dpage){dataPage=+d.dpage;render();document.querySelector(".dtab")?.scrollIntoView({block:"center"})}
+ else if(d.dflag){dataFlag=dataFlag===d.dflag?null:d.dflag;dataPage=1;render();if(dataFlag)document.querySelector(".dtab")?.scrollIntoView({block:"center"})}
+ else if(d.dflagclear){dataFlag=null;dataPage=1;render()}
+ else if(d.dall){dataAll=!dataAll;dataPage=1;render()}
+ else if(d.qtype){dataQType=d.qtype;render()}
+ else if(d.qkeep!==undefined){const it=QUEUE[+d.qkeep];it.row.run.review=it.row.run.review||{};it.row.run.review[it.key]="keep";touch(it.row.p);save();toast(it.type==="miss"?"비어 있어도 되는 값으로 표시했어요":"정상 값으로 확인했어요");render()}
+ else if(d.qfix!==undefined){const it=QUEUE[+d.qfix],v=(document.getElementById("qf"+d.qfix)?.value||"").trim(),ref=it.row.ref[it.key];
+  if(!v){toast("올바른 값을 입력해 주세요");return}if(!Number.isFinite(num(v))){toast("숫자로 입력해 주세요 (예: 105)");return}
+  const g=ref.grp==="X"?"x":"y";it.row.run[g]=it.row.run[g]||{};it.row.run[g][ref.cid]=v;touch(it.row.p);save();toast(`${it.st.c.name}을(를) ${v}(으)로 고쳤어요`);render()}
+ else if(d.qexcl!==undefined){const it=QUEUE[+d.qexcl];it.row.run.excl=true;touch(it.row.p);save();ui["qproc"]=true;toast("이 실험을 ML 데이터에서 제외했어요. 아래 '처리한 항목'에서 되돌릴 수 있어요");render()}
+ else if(d.qundo!==undefined){const x=PROC[+d.qundo];delete x.run.review[x.key];touch(x.p);save();toast("다시 확인 대기로 돌렸어요");render()}
+ else if(d.qrestore!==undefined){const r=EXCL[+d.qrestore];delete r.run.excl;touch(r.p);save();toast("제외를 취소했어요");render()}
+ else if(rowSel&&!p){sel=rowSel.dataset.sel;screen="dash";render();window.scrollTo(0,0)}
+ else if(d.dfilter){dashFilter=dashFilter===d.dfilter?"all":d.dfilter;render()}
+ else if(d.vatt){const a=+d.vatt;viewA[p.id]=a;delete view[p.id];render()}
+ else if(d.pass){
+  const sg=STAGES[p.pos],rec=curRec(p),fc=failCount(rec),hi=isRA(sg)&&rec?openRisks(rec).filter(k=>riskLevel(k)==="높음"):[],dec=isRA(sg)&&rec?rec.decision.result:"";
+  const go=()=>{log(p,`✓ ${sg} 통과${dec?` (회의 결정: ${dec})`:""}`);p.pos++;resetView(p);touch(p);save();render()};
+  const msgs=[];if(fc)msgs.push(`Fail 판정 ${fc}건`);if(hi.length)msgs.push(`열린 높음 Risk ${hi.length}건 (${hi.map(k=>k.title||"제목 없음").join(", ")})`);if(isRA(sg)&&!dec)msgs.push("R/A 회의 결정이 비어 있어요");
+  if(msgs.length)dlg({title:"확인하고 넘어가요",msg:`'${sg}' 통과 전에 확인해 주세요: ${msgs.join(" / ")}. 그래도 통과로 기록할까요?`,ok:"그래도 통과"}).then(v=>{if(v)go()});
+  else go()}
+ else if(d.fail){
+  dlg({title:`'${STAGES[p.pos]}' Fail 처리`,msg:"1차 R/A부터 다시 시작하고, 연속 통과는 0으로 돌아가요. Fail 사유를 적어 주세요. 비워도 돼요.",input:"예: 고객 측정 Haze 2.1% (규격 1.5% 초과)",ok:"Fail 처리",danger:true}).then(why=>{
+   if(why===null)return;why=why.trim();
+   log(p,`✗ ${STAGES[p.pos]} Fail${why?" · "+why:""} → 1차 R/A부터 다시 (시도 ${p.attempt+1})`);
+   const r=getRec(p,STAGES[p.pos],p.attempt,true);if(why)r.note=(r.note?r.note+"\n":"")+"Fail 사유: "+why;
+   const failedStage=STAGES[p.pos];p.pos=FIRST_RA;p.attempt++;
+   {const ra=getRec(p,STAGES[FIRST_RA],p.attempt,true);   // 새 R/A에 Fail 원인을 Risk로 올리고, 해결 안 된 이전 Risk도 이어 온다
+    ra.risks.push(newRisk({title:why||`${failedStage} Fail`,cat:"품질·성능",sev:"3",prob:"2",from:`시도 ${p.attempt-1} · ${failedStage} Fail`}));importRisks(p,ra)}
+   resetView(p);touch(p);save();render();toast("Fail로 기록했어요. 1차 R/A부터 다시 시작해요 (시도 "+p.attempt+")")})}
+ else if(d.sa){ui["str:"+d.sa]=true;recOf(p,d.sa).structure.push({id:uid(),layer:"",material:"",thickness:"",unit:"µm",note:""});save();render()}
+ else if(d.st){ui["str:"+d.st]=true;recOf(p,d.st).structure.push(...LAYERS.map(([layer,material,thickness,unit])=>({id:uid(),layer,material,thickness,unit,note:""})));save();render()}
+ else if(d.sd){const[rid,id]=d.sd.split("|"),r=recOf(p,rid);r.structure=r.structure.filter(x=>x.id!==id);touch(p);save();render()}
+ else if(d.xa){const[rid,k]=d.xa.split("|"),r=recOf(p,rid);ui["exp:"+rid]=true;r.exp[k].push({id:uid(),name:"",unit:""});save();render()}
+ else if(d.xt){const r=recOf(p,d.xt);ui["exp:"+d.xt]=true;EXP_X.forEach(([name,unit])=>r.exp.x.push({id:uid(),name,unit}));EXP_Y.forEach(([name,unit])=>r.exp.y.push({id:uid(),name,unit}));save();render()}
+ else if(d.cd){const[rid,k,id]=d.cd.split("|"),r=recOf(p,rid);
+  const rm=()=>{r.exp[k]=r.exp[k].filter(c=>c.id!==id);r.exp.runs.forEach(u=>{if(u[k])delete u[k][id]});touch(p);save();render()};
+  if(r.exp.runs.some(u=>(u[k]||{})[id]!==undefined&&(u[k]||{})[id]!==""))dlg({title:"열 삭제",msg:"이 열에 입력된 값이 모두 지워져요. 삭제할까요?",ok:"삭제",danger:true}).then(v=>{if(v)rm()});
+  else rm()}
+ else if(d.ra){const r=recOf(p,d.ra);ui["exp:"+d.ra]=true;r.exp.runs.push({id:uid(),date:today(),note:"",x:{},y:{}});save();render()}
+ else if(d.rc){const[rid,id]=d.rc.split("|"),r=recOf(p,rid),i=r.exp.runs.findIndex(u=>u.id===id),u=r.exp.runs[i];
+  r.exp.runs.splice(i+1,0,{id:uid(),date:today(),note:"",x:{...u.x},y:{}});save();render()}   // 결과는 비우고 조건만 복제
+ else if(d.rd){const[rid,id]=d.rd.split("|"),r=recOf(p,rid);r.exp.runs=r.exp.runs.filter(u=>u.id!==id);touch(p);save();render()}
+ else if(d.mode){modes[p.id]=d.mode;render()}
+ else if(d.star){const[rid,id]=d.star.split("|"),r=recOf(p,rid),on=!r.exp.runs.find(u=>u.id===id).star;
+  r.exp.runs.forEach(u=>{delete u.star});if(on)r.exp.runs.find(u=>u.id===id).star=true;touch(p);save();render()}
+ else if(d.spadd){p.specs.push({id:uid(),item:"",spec:"",unit:""});save();render()}
+ else if(d.spdel){p.specs=p.specs.filter(x=>x.id!==d.spdel);touch(p);save();render()}
+ else if(d.sptpl){TEMPLATE.forEach(([item,unit])=>p.specs.push({id:uid(),item,spec:"",unit}));save();render()}
+ else if(d.spfill){const r=recOf(p,d.spfill);(p.specs||[]).filter(s=>s.item&&!r.evals.some(e=>norm(e.item)===norm(s.item))).forEach(s=>r.evals.push({id:uid(),item:s.item,spec:s.spec,value:"",unit:s.unit,result:"",note:""}));syncEvals(p);touch(p);save();render()}
+ else if(d.radd){recOf(p,d.radd).risks.push(newRisk());save();render()}
+ else if(d.rdel){const[rid,id]=d.rdel.split("|"),r=recOf(p,rid);r.risks=r.risks.filter(k=>k.id!==id);touch(p);save();render()}
+ else if(d.rimp){const r=recOf(p,d.rimp),n=importRisks(p,r);toast(n?`Risk ${n}건을 가져왔어요`:"가져올 Risk가 없어요");touch(p);save();render()}
+ else if(d.view!==undefined){view[p.id]=+d.view;modes[p.id]="rec";delete viewAtt[p.id];render()}
+ else if(d.att!==undefined){viewAtt[p.id]=+d.att;render()}
+ else if(d.addrow){const[rid,tb]=d.addrow.split("|"),r=p.records.find(x=>x.id===rid);
+  r[tb].push(tb==="recipe"?{id:uid(),item:"",value:"",unit:"",note:""}:{id:uid(),item:"",spec:"",value:"",unit:"",result:"",note:""});save();render()}
+ else if(d.delrow){const[rid,tb,id]=d.delrow.split("|"),r=p.records.find(x=>x.id===rid);r[tb]=r[tb].filter(x=>x.id!==id);touch(p);save();render()}
+ else if(d.tpl){const r=p.records.find(x=>x.id===d.tpl);TEMPLATE.forEach(([item,unit])=>r.evals.push({id:uid(),item,spec:"",value:"",unit,result:"",note:""}));syncEvals(p);save();render()}
+ else if(d.xlsx!==undefined){const[s,a]=d.xlsx.split("|");download(p,s,s?+a:a)}
+ else if(d.delp){dlg({title:"프로젝트 삭제",msg:`'${p.name||"(이름 없음)"}' 프로젝트를 삭제할까요? 입력한 recipe와 평가 결과도 모두 지워져요.`,ok:"삭제",danger:true}).then(v=>{if(v){D.projects=D.projects.filter(x=>x.id!==p.id);sel=null;save();render();window.scrollTo(0,0)}})}
+});
+(async()=>{
+ try{D=await fetch("/api/data").then(r=>r.json())}catch(e){toast("서버에 연결하지 못했어요")}
+ D.projects=D.projects||[];D.projects.forEach(fix);sel=null;                                   // 처음엔 전체 프로젝트 대시보드
+ if(location.hash==="#data")screen="data";
+ const dl=location.hash.match(/^#v(\d+)(c)?(?:a(\d+))?$/);       // 바로가기: #v0 = 첫 프로젝트의 제품 설계 단계, #v0c = 성능 비교까지 펼치기, #v4a1 = 1차 고객 승인의 시도 1 기록
+ if(dl&&D.projects[0]){sel=D.projects[0].id;view[sel]=Math.min(+dl[1],LAST);if(dl[2])ui["cmp:"+sel]=true;if(dl[3])viewA[sel]=+dl[3]}
+ render();
+})();
+</script>
+</body>
+</html>
