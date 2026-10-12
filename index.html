@@ -509,7 +509,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const days=d=>d?Math.floor((Date.now()-new Date(d))/864e5):null;
 const cur=()=>D.projects.find(p=>p.id===sel);
 let timer;
-function save(){clearTimeout(timer);timer=setTimeout(()=>fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...D,projects:D.projects.map(p=>({...p,records:p.records.filter(filled)}))})}).catch(()=>toast("저장 실패: 서버가 켜져 있는지 확인하세요")),300)}
+function save(){clearTimeout(timer);timer=setTimeout(()=>fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...D,projects:D.projects.map(p=>({...p,records:p.records.filter(filled)}))})}).then(r=>{if(r.status===403)toast("읽기 전용으로 열려 있어서 저장되지 않아요. 새로고침하면 원래 내용으로 돌아와요")}).catch(()=>toast("저장 실패: 서버가 켜져 있는지 확인하세요")),300)}
 /* 브라우저 기본 prompt/confirm은 앱 안의 브라우저 등에서 막혀 아무 반응이 없을 수 있어서, 화면 안에 직접 그리는 대화상자를 쓴다.
    input을 주면 입력칸이 생기고 입력값(취소는 null)을, 주지 않으면 확인 true(취소는 null)를 돌려준다 */
 function dlg({title,msg,input,ok="확인",danger=false}){

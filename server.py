@@ -6,9 +6,11 @@
 """
 import csv
 import io
+import ipaddress
 import json
 import os
 import re
+import socket
 import sys
 import tempfile
 import threading
@@ -22,6 +24,30 @@ import xlsx_writer
 BASE = Path(__file__).resolve().parent
 DATA = BASE / "data.json"
 PORT = int(os.environ.get("PORT", "8810"))
+# 같은 와이파이의 다른 기기에도 열려면:  python server.py --lan   (보기만 허용하려면 --lan --readonly)
+LAN = "--lan" in sys.argv or os.environ.get("LAN") == "1"
+READONLY = "--readonly" in sys.argv or os.environ.get("READONLY") == "1"
+
+
+def host_ok(host):
+    name = re.sub(r":\d+$", "", host.strip())
+    if name in ("localhost", "127.0.0.1"):
+        return True
+    if not LAN:
+        return False
+    try:
+        a = ipaddress.ip_address(name)
+    except ValueError:
+        return False   # 도메인 이름으로 들어온 요청은 받지 않는다
+    return a.version == 4 and a.is_private
+
+
+def client_ok(addr):
+    try:
+        a = ipaddress.ip_address(addr)
+    except ValueError:
+        return False
+    return a.is_loopback or (LAN and a.version == 4 and a.is_private)
 LOCK = threading.Lock()
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -263,10 +289,12 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _local_only(self):
+        """접근 제어. 기본은 이 PC(localhost)에서만. --lan 이면 같은 내부망(사설 IP)에서 IP 주소로 접속한 요청까지 허용한다.
+        Host가 IP·localhost가 아니면(다른 사이트가 이 서버를 몰래 부르는 경우 등) 거부하고,
+        Origin이 있으면 접속한 주소와 같아야 한다."""
         host = self.headers.get("Host", "")
         origin = self.headers.get("Origin", "")
-        ok = re.match(r"^(localhost|127\.0\.0\.1)(:\d+)?$", host) and (
-            not origin or re.match(r"^http://(localhost|127\.0\.0\.1)(:\d+)?$", origin))
+        ok = host_ok(host) and client_ok(self.client_address[0]) and (not origin or origin == "http://" + host)
         if not ok:
             self._send(403, {"error": "허용되지 않은 접근"})
         return bool(ok)
@@ -307,6 +335,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         if self.path != "/api/data" or not self._local_only():
             return
+        if READONLY:
+            return self._send(403, {"error": "읽기 전용으로 열려 있어서 저장할 수 없어요"})
         try:
             obj = self._body()
             if not isinstance(obj.get("projects"), list):
@@ -333,9 +363,40 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
+def lan_addresses():
+    """이 PC의 내부망 IPv4 주소들 (같은 와이파이의 다른 기기가 접속할 때 쓰는 주소)"""
+    found = []
+    try:
+        for ip in socket.gethostbyname_ex(socket.gethostname())[2]:
+            found.append(ip)
+    except OSError:
+        pass
+    try:   # 실제로 패킷을 보내지 않고, 기본 경로로 쓰이는 내 주소만 알아낸다
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))
+        found.append(s.getsockname()[0])
+        s.close()
+    except OSError:
+        pass
+    out = []
+    for ip in found:
+        try:
+            a = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if a.version == 4 and a.is_private and not a.is_loopback and not a.is_link_local and ip not in out:
+            out.append(ip)
+    return out
+
+
 if __name__ == "__main__":
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    srv = ThreadingHTTPServer(("0.0.0.0" if LAN else "127.0.0.1", PORT), Handler)
     print(f"실험실 프로젝트 관리 대시보드: http://localhost:{PORT}/   (끄려면 Ctrl+C)")
+    if LAN:
+        print("같은 와이파이의 다른 기기에서는 아래 주소로 접속해요:")
+        for ip in lan_addresses():
+            print(f"    http://{ip}:{PORT}/")
+        print("※ 이 주소를 아는 같은 네트워크의 누구나 열 수 있어요." + (" (읽기 전용: 저장은 막혀 있어요)" if READONLY else " 입력·수정·삭제도 가능하니 믿을 수 있는 사람과만 쓰세요."))
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
