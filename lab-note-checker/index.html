@@ -78,7 +78,7 @@ td.c-seen .cell{opacity:.75}
 .iss .act{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 h2{font-size:16px;margin:22px 0 8px}
 h3{font-size:14px;margin:0 0 6px}
-.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:14px}
 .charts>*{min-width:0}
 .chart{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
 .chart .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
@@ -131,6 +131,11 @@ details summary{cursor:pointer}
 .chip.in{background:var(--acc-soft);color:var(--acc)}
 .chip.out{background:var(--warn-soft);color:var(--warn)}
 .chip.inf{background:var(--soft);color:var(--mute)}
+.cm{border-collapse:separate;border-spacing:3px;width:100%}
+.cm th{font-size:12px;font-weight:600;text-align:center;padding:4px 6px;vertical-align:bottom}
+.cm th.rl{text-align:left;white-space:nowrap}
+.cm th .note{font-weight:400}
+.cm td{min-width:60px;height:34px;text-align:center;border-radius:5px;font-size:12.5px;font-variant-numeric:tabular-nums}
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:20px;max-width:min(680px,92vw)}
 dialog::backdrop{background:#0008}
 </style>
@@ -282,7 +287,7 @@ function axes(xt,yt,xs,ys,xl,yl){let o="";
  if(yl)o+=`<text x="10" y="${(M.t+H-M.b)/2}" text-anchor="middle" transform="rotate(-90 10 ${(M.t+H-M.b)/2})">${esc(yl)}</text>`;return o}
 const lab=c=>c.name+(c.unit?` (${c.unit})`:"");
 const flagMap=()=>cellFlags(allIssues());
-function sel(id,cols,cur){return `<select data-v="${id}">${cols.map(c=>`<option value="${c.id}"${c.id===cur?" selected":""}>${esc(c.name)}</option>`).join("")}</select>`}
+function sel(id,cols,cur,lbl){return `<select data-v="${id}">${cols.map(c=>`<option value="${c.id}"${c.id===cur?" selected":""}>${esc(lbl?lbl(c):c.name)}</option>`).join("")}</select>`}
 const pick=(id,list)=>{const v=S.v[id];return list.find(c=>c.id===v)||list[0]};
 const bad=(why)=>`<div class="empty">${why}</div>`;
 
@@ -308,27 +313,29 @@ function chTrend(){const nc=S.cols.filter(c=>isNum(c)&&c.role==="result");if(!nc
  o+=`<line x1="${M.l}" x2="${W-M.r}" y1="${ys(st.med)}" y2="${ys(st.med)}" stroke="var(--chart2)" stroke-dasharray="4 3"/><text x="${W-M.r}" y="${ys(st.med)-4}" text-anchor="end" style="fill:var(--chart2)">중앙값 ${fmt(st.med)}</text>`;
  return `<div class="chart"><div class="hd"><h3>회차별 출력 (× = 값 없음·제외)</h3>${sel("tr",nc,c.id)}</div><svg viewBox="0 0 ${W} ${H}">${o}</svg></div>`}
 
-function chScatter(){const nc=S.cols.filter(isNum);if(nc.length<2)return"";
- const xs0=nc.filter(c=>c.role==="condition"),ys0=nc.filter(c=>c.role==="result");const XL=xs0.length?xs0:nc,YL=ys0.length?ys0:nc;
- const x=pick("sx",XL),y=pick("sy",YL.filter(c=>c.id!==x.id).length?YL.filter(c=>c.id!==x.id):YL);
+const distinct=c=>new Set(RS().map(r=>cellOf(r,c).v).filter(v=>v!=null)).size;
+const varyIn=()=>S.cols.filter(c=>c.role==="condition"&&distinct(c)>=2);   // 실험하면서 실제로 값이 바뀐 입력
+const outCols=()=>S.cols.filter(c=>isNum(c)&&c.role==="result");
+const kinds=c=>`${c.name} · ${distinct(c)}가지 값`;
+function chScatter(){const XL=varyIn().filter(isNum).sort((a,b)=>distinct(b)-distinct(a)),YL=outCols();if(!XL.length||!YL.length)return"";
+ const x=pick("sx",XL),y=pick("sy",YL);
  const p=RS().map(r=>({r,x:numv(r,x),y:numv(r,y)})).filter(q=>q.x!=null&&q.y!=null);
- const head=`<div class="hd"><h3>입력 ↔ 출력</h3>${sel("sx",XL,x.id)}<span class="note">→</span>${sel("sy",YL,y.id)}</div>`;
+ const head=`<div class="hd"><h3>입력 ↔ 출력</h3>${sel("sx",XL,x.id,kinds)}<span class="note">→</span>${sel("sy",YL,y.id)}</div>`;
  if(p.length<3)return `<div class="chart">${head}${bad("쌍이 3개 미만이라 그릴 수 없어요")}</div>`;
  const sx=stats(p.map(q=>q.x)),sy=stats(p.map(q=>q.y)),xt=ticks(sx.min,sx.max),yt=ticks(Math.min(0,sy.min),sy.max),
-  X=lin(xt[0]<sx.min?xt[0]:sx.min,Math.max(xt[xt.length-1],sx.max),M.l+6,W-M.r-6),Y=lin(yt[0],yt[yt.length-1],H-M.b,M.t);
+  X=lin(Math.min(xt[0],sx.min),Math.max(xt[xt.length-1],sx.max),M.l+6,W-M.r-6),Y=lin(yt[0],yt[yt.length-1],H-M.b,M.t);
  let o=axes(xt,yt,X,Y,lab(x),lab(y));p.forEach(q=>o+=`<circle cx="${X(q.x)}" cy="${Y(q.y)}" r="5" fill="var(--chart1)" opacity=".8"><title>${esc(q.r.label)}: ${fmt(q.x)}, ${fmt(q.y)}</title></circle>`);
  const r=pearson(p.map(q=>[q.x,q.y]));
- return `<div class="chart">${head}<svg viewBox="0 0 ${W} ${H}">${o}</svg><div class="note">n=${p.length}${r!=null?` · 상관계수 r=${r.toFixed(2)}`:""} (상관은 원인을 뜻하지 않아요. 다른 입력이 함께 바뀐 실험이 섞여 있을 수 있어요)</div></div>`}
+ return `<div class="chart">${head}<svg viewBox="0 0 ${W} ${H}">${o}</svg><div class="note">n=${p.length}${r!=null?` · 상관계수 r=${r.toFixed(2)}`:""} · 상관은 원인을 뜻하지 않아요. 다른 입력이 함께 바뀐 실험이 섞여 있을 수 있어요.</div></div>`}
 
-function chGroup(){const yc=S.cols.filter(c=>isNum(c)&&c.role==="result");if(!yc.length)return"";
- const gc=S.cols.filter(c=>c.role!=="result"&&new Set(RS().map(r=>cellOf(r,c).v).filter(v=>v!=null)).size.toString()>=2&&new Set(RS().map(r=>cellOf(r,c).v).filter(v=>v!=null)).size<=8);
- if(!gc.length)return"";const g=pick("gg",gc),y=pick("gy",yc);
+function chGroup(){const GL=varyIn().filter(c=>distinct(c)<=8),yc=outCols();if(!GL.length||!yc.length)return"";
+ const g=pick("gg",GL),y=pick("gy",yc);
  const gs={};RS().forEach(r=>{const k=cellOf(r,g).v;if(k==null)return;const v=numv(r,y);if(v!=null)(gs[k]=gs[k]||[]).push([v,r.label])});
  const keys=Object.keys(gs).sort((a,b)=>isNum(g)?a-b:a.localeCompare(b)),all=keys.flatMap(k=>gs[k].map(q=>q[0]));
- const head=`<div class="hd"><h3>입력별 출력 비교</h3>${sel("gg",gc,g.id)}<span class="note">별</span>${sel("gy",yc,y.id)}</div>`;
+ const head=`<div class="hd"><h3>입력별 출력 비교</h3>${sel("gg",GL,g.id,kinds)}<span class="note">별</span>${sel("gy",yc,y.id)}</div>`;
  if(!all.length)return `<div class="chart">${head}${bad("그릴 값이 없어요")}</div>`;
  const yt=ticks(Math.min(0,...all),Math.max(...all)),Y=lin(yt[0],yt[yt.length-1],H-M.b,M.t),bw=(W-M.l-M.r)/keys.length;let o=axes([],yt,()=>0,Y,"",lab(y));
- keys.forEach((k,i)=>{const cx=M.l+bw*(i+.5),a=gs[k],m=a.reduce((s,q)=>s+q[0],0)/a.length;
+ keys.forEach((k,i)=>{const cx=M.l+bw*(i+.5),a=gs[k],m=a.reduce((t,q)=>t+q[0],0)/a.length;
   o+=`<text x="${cx}" y="${H-M.b+14}" text-anchor="middle">${esc(k)}</text><text x="${cx}" y="${H-M.b+26}" text-anchor="middle">n=${a.length}</text>`;
   a.forEach((q,j)=>o+=`<circle cx="${cx+(j-(a.length-1)/2)*Math.min(14,bw/(a.length+1))}" cy="${Y(q[0])}" r="4.5" fill="var(--chart3)" opacity=".85"><title>${esc(q[1])}: ${fmt(q[0])}</title></circle>`);
   o+=`<line x1="${cx-bw*.3}" x2="${cx+bw*.3}" y1="${Y(m)}" y2="${Y(m)}" stroke="var(--chart2)" stroke-width="2"/>`});
@@ -346,12 +353,12 @@ function chHist(){const nc=S.cols.filter(isNum);if(!nc.length)return"";const c=p
  vs.forEach(v=>{if(iqr&&(v<fl||v>fh))o+=`<circle cx="${X(v)}" cy="${by}" r="4" fill="var(--bad)"/>`});
  return `<div class="chart">${head}<svg viewBox="0 0 ${W} ${H}">${o}</svg><div class="note">n=${st.n} · 평균 ${fmt(st.mean)} · 중앙값 ${fmt(st.med)} · 범위 ${fmt(st.min)}~${fmt(st.max)}. 아래 상자 그림의 빨간 점이 이상치 후보입니다.</div></div>`}
 
-function chCorr(){const nc=S.cols.filter(isNum);if(nc.length<2)return"";
- const rc=(a,b)=>{const p=RS().map(r=>[numv(r,a),numv(r,b)]).filter(q=>q[0]!=null&&q[1]!=null);return pearson(p)};
+function chCorr(){const XL=varyIn().filter(isNum),YL=outCols();if(!XL.length||!YL.length)return"";
+ const rc=(a,b)=>pearson(RS().map(r=>[numv(r,a),numv(r,b)]).filter(q=>q[0]!=null&&q[1]!=null));
  const col=r=>r==null?"var(--soft)":`color-mix(in srgb,${r>0?"var(--chart1)":"var(--chart2)"} ${Math.round(Math.abs(r)*85)}%,var(--panel))`;
- const rows=nc.map(a=>`<tr><th>${esc(a.name)}</th>${nc.map(b=>{const r=a.id===b.id?1:rc(a,b);return `<td style="background:${col(r)}" title="${esc(a.name)} × ${esc(b.name)}">${r==null?"–":r.toFixed(2)}</td>`}).join("")}</tr>`).join("");
- return `<div class="chart"><div class="hd"><h3>숫자 열 사이의 상관</h3></div><div class="tscroll"><table class="hm"><thead><tr><th></th>${nc.map(c=>`<th style="writing-mode:vertical-rl;height:96px;vertical-align:bottom">${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
- <div class="note">청록 = 함께 증가, 주황 = 한쪽이 늘면 다른 쪽이 줄어듦. 값이 4쌍 미만이면 '–'. 상관은 원인을 뜻하지 않아요.</div></div>`}
+ const rows=XL.map(a=>`<tr><th class="rl">${esc(a.name)}<div class="note">${distinct(a)}가지 값</div></th>${YL.map(b=>{const r=rc(a,b);return `<td style="background:${col(r)}${r!=null&&Math.abs(r)>=.7?";font-weight:700":""}" title="${esc(a.name)} → ${esc(b.name)}">${r==null?"–":r.toFixed(2)}</td>`}).join("")}</tr>`).join("");
+ return `<div class="chart" style="grid-column:1/-1"><div class="hd"><h3>입력별 출력 상관</h3></div><div class="tscroll"><table class="cm"><thead><tr><th></th>${YL.map(c=>`<th>${esc(c.name)}${c.unit?`<div class="note">(${esc(c.unit)})</div>`:""}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
+ <div class="note" style="margin-top:6px">행 = 값이 바뀐 입력, 열 = 출력. 청록 = 입력이 클수록 출력도 큼, 주황 = 입력이 클수록 출력은 작음, 굵은 글씨 = 상관이 강함(|r| ≥ 0.7). 값이 4쌍 미만이면 '–'. 상관은 원인을 뜻하지 않아요.</div></div>`}
 
 /* ---------- 가져오기 / 행 편집 ---------- */
 const SAMPLE_CSV="실험,날짜,기판 크기 (mm),기판 두께 (μm),TGV 직경 (μm),시드층 두께 (nm),Cu 농도 (g/L),억제제 (ppm),가속제 (ppm),평탄제 (ppm),욕 온도 (℃),전류 파형,전류밀도 (ASD),도금 시간 (min),교반 (rpm),충진율 (%),기공률 (vol%),보이드,딤플 깊이 (μm),표면 도금 두께 (μm),두께 편차 (%),접착력 (N/cm),기판 휨 (μm),비고\nG-01,2026-10-06,100,300,50,300,50,100,5,10,25,DC,1.0,60,60,62,12.0,있음,8.5,6.2,9.1,7.8,21,\nG-02,2026-10-06,100,300,50,300,50,100,5,10,25,DC,0.5,120,60,78,7.5,있음,5.1,5.8,8.4,7.9,20,\nG-03,2026-10-06,100,300,50,300,50,100,10,10,25,DC,0.5,120,60,91,2.4,없음,2.0,6.0,7.2,7.7,19,\nG-04,2026-10-07,100,300,50,300,50,100,10,10,25,DC,0.5,180,60,98,0.4,없음,0.9,8.9,6.8,7.6,22,\nG-05,2026-10-07,100,300,50,300,50,150,10,10,25,DC,0.5,180,60,99,0.2,없음,0.7,9.1,6.1,7.5,22,\nG-06,2026-10-07,100,300,50,300,50,100,10,10,25,DC,0.5,180,100,9.9,0.3,없음,0.8,9.0,6.4,7.6,23,교반만 변경\nG-07,2026-10-08,100,300,50,300,50,100,10,10,25,DC,0.8,120,60,87,31,있음,3.3,8.1,7.9,7.4,21,\nG-08,2026-10-08,100,300,50,100,50,100,10,10,25,DC,0.5,180,60,97,0.3,없음,1.1,9.0,6.5,3.1,22,시드층 100 nm로 변경\nG-09,2026-10-09,100,300,50,300,50,100,10,10,25,DC,0.5,180,60,약 95 정도,0.5,없음,1.0,8.8,6.9,7.5,22,\nG-10,2026-10-09,100,300,50,300,50,100,10,10,25,DC,0.5,180,60,98,0.3,없음,0.9,8.9,6.7,,21,\nG-11,2026-10-09,100,300,50,300,50,100,10,10,25,DC,0.5,180,60,97,0.4,없음,1.0,8900 nm,6.6,7.6,22,\nG-12,2026-10-10,100,300,50,300,50,100,10,10,25,DC,0.5,180,60,98,0.3,,0.9,9.0,45,7.7,22,\nG-13,2026-10-10,100,300,50,300,50,100,10,10,25,DC,0.5,180,60,96,0.6,없음,측정불가,8.7,6.9,7.5,21,";
@@ -509,7 +516,7 @@ function chMissBars(){const C=S.cols.filter(c=>c.role!=="info"),rows=RS(),n=rows
 function viewViz(){if(!S.rows.length)return bad("먼저 데이터를 가져오거나 입력해 주세요. (입력 탭)");
  const cur=ST_TABS.find(t=>t[0]===S.v.st)||ST_TABS[0];
  const sc=`<select data-v="scope"><option value="all">전체 누적</option>${S.batches.map(b=>`<option value="${b.id}"${S.v.scope===b.id?" selected":""}>${esc(b.name)}</option>`).join("")}</select>`;
- const body={sum:chSum,miss:()=>chMissBars()+chHeat(),eff:()=>chScatter()+chGroup()+chCorr(),trend:chTrend,dist:chHist}[cur[0]]();
+ const body={sum:chSum,miss:()=>chMissBars()+chHeat(),eff:()=>chScatter()+chGroup()+chCorr()||`<div class="chart" style="grid-column:1/-1">${bad("값이 바뀐 입력이 없어요. 입력 조건을 바꿔 가며 실험한 데이터가 있어야 비교할 수 있어요.")}</div>`,trend:chTrend,dist:chHist}[cur[0]]();
  return `<div class="row" style="margin-bottom:10px"><b>범위</b>${sc}<span class="note">${RS().length}행</span><span style="flex:1"></span><button class="btn sm" data-act="csv">누적 표를 CSV로 저장</button></div>
  <div class="subtabs">${ST_TABS.map(t=>`<button class="stab" data-act="st:${t[0]}" aria-current="${t[0]===cur[0]}">${t[1]}</button>`).join("")}</div>
  <div class="purpose">${cur[2]}</div><div class="charts">${body}</div>`}
