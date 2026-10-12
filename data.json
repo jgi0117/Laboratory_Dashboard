@@ -1279,38 +1279,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp001",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥70",
-     "unit": "%"
-    },
-    {
-     "id": "sp002",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥85",
-     "unit": "%"
-    },
-    {
-     "id": "sp003",
-     "item": "UV 차단율",
-     "spec": "≥99",
-     "unit": "%"
-    },
-    {
-     "id": "sp004",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp005",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "s174",
@@ -2021,26 +1990,7 @@
      "text": "✓ 1차 R/A 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp006",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥80",
-     "unit": "%"
-    },
-    {
-     "id": "sp007",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp008",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "s175",
@@ -2311,20 +2261,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp009",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "18~22",
-     "unit": "%"
-    },
-    {
-     "id": "sp010",
-     "item": "색차(ΔE) 샘플 간",
-     "spec": "≤1.0",
-     "unit": ""
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e056",
@@ -3144,32 +3081,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp011",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥45",
-     "unit": "%"
-    },
-    {
-     "id": "sp012",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥70",
-     "unit": "%"
-    },
-    {
-     "id": "sp013",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp014",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e116",
@@ -4015,40 +3927,15 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp015",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥5",
-     "unit": "%"
-    },
-    {
-     "id": "sp016",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥85",
-     "unit": "%"
-    },
-    {
-     "id": "sp017",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp018",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e164",
    "name": "[예시] 차량용 윈도우 필름 WF-B35 (블랙 계열 색상 안정형)",
-   "pos": 3,
+   "pos": 5,
    "attempt": 3,
    "note": "시도 3에서 1차 Trial production 의뢰 중. 색차 편차 원인(염료 로트) 확인 필요.",
-   "updated": "2026-09-28",
+   "updated": "2026-10-12",
    "records": [
     {
      "id": "e148",
@@ -4806,6 +4693,14 @@
    ],
    "log": [
     {
+     "date": "2026-10-12",
+     "text": "✓ 1차 고객 승인 통과"
+    },
+    {
+     "date": "2026-10-12",
+     "text": "✓ 1차 Trial production 통과"
+    },
+    {
      "date": "2026-09-28",
      "text": "✓ 1차 R/A 통과"
     },
@@ -4838,32 +4733,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp019",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥30",
-     "unit": "%"
-    },
-    {
-     "id": "sp020",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥55",
-     "unit": "%"
-    },
-    {
-     "id": "sp021",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp022",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e200",
@@ -5351,32 +5221,7 @@
     }
    ],
    "log": [],
-   "specs": [
-    {
-     "id": "sp023",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥70",
-     "unit": "%"
-    },
-    {
-     "id": "sp024",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥50",
-     "unit": "%"
-    },
-    {
-     "id": "sp025",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp026",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e257",
@@ -5384,7 +5229,7 @@
    "pos": 7,
    "attempt": 2,
    "note": "고객 회신 지연으로 2차 고객 승인 대기 중. 회신 요청 메일 재발송 필요.",
-   "updated": "2026-07-29",
+   "updated": "2026-10-12",
    "records": [
     {
      "id": "e231",
@@ -6190,105 +6035,6 @@
       "by": "개발팀장, 품질, 영업",
       "cond": "고객 사양 서면 확인 후 Trial 의뢰"
      }
-    },
-    {
-     "id": "sg9i1pdb",
-     "stage": "2차 고객 승인",
-     "attempt": 2,
-     "note": "",
-     "recipe": [],
-     "evals": [
-      {
-       "id": "5yci0xuu",
-       "item": "가시광선 투과율(VLT)",
-       "spec": "≥70",
-       "value": "",
-       "unit": "%",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "4umzly9l",
-       "item": "IR 차단율 (940nm)",
-       "spec": "≥75",
-       "value": "",
-       "unit": "%",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "od48tf9k",
-       "item": "총 태양에너지 차단율(TSER)",
-       "spec": "",
-       "value": "",
-       "unit": "%",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "qogvmcnt",
-       "item": "UV 차단율",
-       "spec": "",
-       "value": "",
-       "unit": "%",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "zgywczgx",
-       "item": "Haze",
-       "spec": "≤1.5",
-       "value": "",
-       "unit": "%",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "v1u058bs",
-       "item": "접착력",
-       "spec": "≥800",
-       "value": "",
-       "unit": "gf/25mm",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "qjdvjvmj",
-       "item": "내후성 색차(ΔE)",
-       "spec": "",
-       "value": "",
-       "unit": "",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "yy5hrib9",
-       "item": "두께",
-       "spec": "",
-       "value": "",
-       "unit": "µm",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "1o41xs6x",
-       "item": "열수축률",
-       "spec": "",
-       "value": "",
-       "unit": "%",
-       "result": "",
-       "note": ""
-      },
-      {
-       "id": "hha2h95l",
-       "item": "표면 경도(연필)",
-       "spec": "",
-       "value": "",
-       "unit": "H",
-       "result": "",
-       "note": ""
-      }
-     ]
     }
    ],
    "log": [
@@ -6333,32 +6079,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp027",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥70",
-     "unit": "%"
-    },
-    {
-     "id": "sp028",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥75",
-     "unit": "%"
-    },
-    {
-     "id": "sp029",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp030",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e286",
@@ -6688,20 +6409,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp031",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp032",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   },
   {
    "id": "e330",
@@ -7378,32 +7086,7 @@
      "text": "✓ 제품 설계 통과"
     }
    ],
-   "specs": [
-    {
-     "id": "sp033",
-     "item": "가시광선 투과율(VLT)",
-     "spec": "≥60",
-     "unit": "%"
-    },
-    {
-     "id": "sp034",
-     "item": "IR 차단율 (940nm)",
-     "spec": "≥72",
-     "unit": "%"
-    },
-    {
-     "id": "sp035",
-     "item": "Haze",
-     "spec": "≤1.5",
-     "unit": "%"
-    },
-    {
-     "id": "sp036",
-     "item": "접착력",
-     "spec": "≥800",
-     "unit": "gf/25mm"
-    }
-   ]
+   "specs": []
   }
  ]
 }
