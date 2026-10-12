@@ -27,8 +27,9 @@ python server.py
 
 ## 데이터
 
-- 입력한 내용은 같은 폴더의 `data.json`에 저장됩니다. 이 파일은 `.gitignore`에 들어 있어 저장소에는 올라가지 않습니다.
-- `data.json`이 없으면 `data.sample.json`(가상의 예시 프로젝트 10개)으로 시작합니다. 예시의 이름과 값은 모두 지어낸 것입니다.
+- 입력한 내용은 같은 폴더의 `data.json`에 저장됩니다. 저장소에는 가상의 예시 프로젝트 10개가 들어 있고, 이름과 값은 모두 지어낸 것입니다.
+- 새로 시작하려면 `data.json`을 지우거나 `{"projects": []}`로 바꾸면 빈 상태로 시작합니다.
+- 실제 실험 데이터를 입력한 뒤에는 `data.json`을 그대로 커밋하지 않도록 주의하세요. 저장소가 공개라면 `.gitignore`에 `data.json`을 추가하면 됩니다.
 - 백업은 `data.json` 파일을 복사해 두면 됩니다.
 
 ## 구성
@@ -38,4 +39,4 @@ python server.py
 | `server.py` | 로컬 서버, 데이터 저장, 엑셀·CSV 내보내기 |
 | `xlsx_writer.py` | 외부 라이브러리 없이 `.xlsx`를 만드는 작성기 |
 | `index.html` | 화면 전체 (HTML·CSS·JS 한 파일) |
-| `data.sample.json` | 예시 데이터 |
+| `data.json` | 저장 데이터 (가상의 예시 프로젝트 10개가 들어 있음) |

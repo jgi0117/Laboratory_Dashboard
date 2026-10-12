@@ -26,16 +26,11 @@ LOCK = threading.Lock()
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
-SAMPLE = BASE / "data.sample.json"   # data.json 이 아직 없을 때 처음 한 번 보여 주는 가상의 예시 데이터
-
-
 def load():
-    for f in (DATA, SAMPLE):
-        try:
-            return json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-    return {"projects": []}
+    try:
+        return json.loads(DATA.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"projects": []}
 
 
 def save(obj):
