@@ -235,6 +235,44 @@ class TestML(unittest.TestCase):
         self.assertTrue(e2.status()["stale"])
 
 
+@unittest.skipUnless(ml.AVAILABLE, "numpy/scikit-learn 없음")
+class TestMLCategorical(unittest.TestCase):
+    """문자열 입력 변수(예: 안료 종류)를 one-hot으로 학습·예측·역설계에 쓴다."""
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.s = fresh_store(self.tmp)
+        self.pig = self.s.add_variable("안료 종류", "", "composition")
+        levels = ["카본", "무기 블랙", "없음"]
+        for i, e in enumerate(e for e in self.s.experiments() if e["source"] == "migrated:설계"):
+            lv = levels[i % 3]
+            e["values"][self.pig["id"]] = lv
+            if "v0013" in e["values"]:
+                e["values"]["v0013"] = round(e["values"]["v0013"] + {"카본": 0.6, "무기 블랙": 0.2, "없음": 0.0}[lv], 2)
+        self.eng = ml.Engine(self.s, None)
+        self.rep = self.eng.train()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_categorical_effect(self):
+        self.assertEqual([c["id"] for c in self.rep["categoricals"]], [self.pig["id"]])
+        hz = next(t for t in self.rep["targets"] if t["id"] == "v0013")
+        self.assertGreater(hz["importance"][self.pig["id"]], 0.02)
+        a = self.eng.predict({"v0001": 12, self.pig["id"]: "카본"}, project="p0001")
+        b = self.eng.predict({"v0001": 12, self.pig["id"]: "없음"}, project="p0001")
+        ha = next(t for t in a["targets"] if t["id"] == "v0013")["pred"]
+        hb = next(t for t in b["targets"] if t["id"] == "v0013")["pred"]
+        self.assertGreater(ha - hb, 0.3)
+        self.assertEqual(self.eng.predict({self.pig["id"]: "모름"}, project="p0001")["unknown_levels"], [self.pig["id"]])
+
+    def test_inverse_with_categorical(self):
+        r = self.eng.inverse([{"var": "v0013", "spec": "≤0.8"}], fixed={self.pig["id"]: "무기 블랙"}, project="p0001")
+        self.assertTrue(all(c["values"][self.pig["id"]] == "무기 블랙" for c in r["candidates"]))
+        r2 = self.eng.inverse([{"var": "v0013", "spec": "≤0.6"}], project="p0001")
+        self.assertTrue(r2["feasible"])
+        self.assertEqual(r2["candidates"][0]["values"][self.pig["id"]], "없음")
+
+
 class TestServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

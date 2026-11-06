@@ -223,7 +223,7 @@ const usedVars=pid=>{const s=new Set(extraCols[pid]||[]);exps(pid).forEach(e=>Ob
 const checkMap=()=>{const m={};(D.checks||[]).forEach(c=>{m[c.exp+"|"+c.var]=c});return m};
 
 // ====================== 렌더 ======================
-function render(){
+function render(){if(!D)return;
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.s===screen));
   const ml=D.ml||{};
   $("status").innerHTML=(D.readonly?`<span class="chip warn">읽기 전용</span>`:"")+
@@ -394,10 +394,11 @@ function dataScreen(){
         <td><button class="x" onclick="patchExp('${e.id}',{excluded:${!e.excluded}})">${e.excluded?"포함":"제외"}</button></td></tr>`).join("")||`<tr><td colspan="99" class="muted">실험이 없어요</td></tr>`}
     </tbody></table></div>
     <div class="pager"><button class="s" ${s.page<=1?"disabled":""} onclick="state.data.page--;render()">이전</button><span>${s.page} / ${np}</span><button class="s" ${s.page>=np?"disabled":""} onclick="state.data.page++;render()">다음</button></div></div>
+  ${scatterCard(rows)}
   <div class="grid g2" style="grid-template-columns:minmax(0,3fr) minmax(300px,2fr)">
     <div class="card"><h2>변수 사전<small>모든 프로젝트 공통</small></h2>
       <div class="twrap" style="max-height:none"><table style="min-width:0"><tr><th>구분</th><th>이름</th><th>단위</th><th>별칭</th><th class="num">건수</th><th class="num">평균</th><th class="num">범위</th><th></th></tr>
-      ${vs.map(v=>{const x=st[v.id]||{};return`<tr><td><span class="chip ${KCLS[v.kind]}">${KIND[v.kind]}</span></td><td>${esc(v.name)}</td><td>${esc(v.unit)}</td><td class="muted" style="white-space:normal;max-width:180px">${esc((v.aliases||[]).join(", "))}</td><td class="num">${x.n??0}</td><td class="num">${fmt(x.mean)}</td><td class="num">${x.n?`${fmt(x.min)}~${fmt(x.max)}`:"-"}</td>
+      ${vs.map(v=>{const x=st[v.id]||{};return`<tr><td><span class="chip ${KCLS[v.kind]}">${KIND[v.kind]}</span></td><td>${esc(v.name)}</td><td>${esc(v.unit)}</td><td class="muted" style="white-space:normal;min-width:160px;max-width:260px">${esc((v.aliases||[]).join(", "))}</td><td class="num">${x.n??0}</td><td class="num">${fmt(x.mean)}</td><td class="num">${x.n?`${fmt(x.min)}~${fmt(x.max)}`:"-"}</td>
         <td style="white-space:nowrap"><button class="x" onclick="editVar('${v.id}')">수정</button><button class="x" onclick="mergeVar('${v.id}')">합치기</button><button class="x" onclick="delVar('${v.id}')">×</button></td></tr>`}).join("")}</table></div>
       <div class="row" style="margin-top:10px"><button class="s" onclick="newVariableDlg()">+ 새 변수</button><span class="help">이름이 다른데 같은 뜻인 변수는 '합치기'로 하나로 모으세요. 가져오기 때 쓴 열 이름은 별칭으로 기억돼요.</span></div></div>
     <div class="card"><h2>점검<small>오타·숫자 아님</small></h2>
@@ -405,6 +406,30 @@ function dataScreen(){
     </div>
   </div>`;
 }
+const PAL={light:["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"],dark:["#3987e5","#d95926","#199e70","#c98500","#d55181","#008300","#9085e9","#e66767"]};
+const pal=()=>matchMedia("(prefers-color-scheme: dark)").matches?PAL.dark:PAL.light;
+function scatterCard(rows){const s=state.data;const vs=vars();const tv=targets();
+  if(!s.sx||!V(s.sx))s.sx=(inputs()[0]||vs[0]||{}).id;if(!s.sy||!V(s.sy))s.sy=(tv[0]||vs[1]||{}).id;
+  const xv=V(s.sx),yv=V(s.sy);if(!xv||!yv)return"";
+  const pts=rows.filter(e=>!e.excluded&&Number.isFinite(num(e.values[s.sx]))&&Number.isFinite(num(e.values[s.sy]))).map(e=>({x:num(e.values[s.sx]),y:num(e.values[s.sy]),p:e.project,e}));
+  const projs=[...new Set(pts.map(p=>p.p))];const col=pal();const cmap={};projs.forEach((p,i)=>cmap[p]=i<8?col[i]:"#8a8a8a");
+  const sel=v=>vs.map(x=>`<option value="${x.id}" ${v===x.id?"selected":""}>${KIND[x.kind]} · ${esc(label(x))}</option>`).join("");
+  return `<div class="card" style="margin-bottom:14px"><h2>입력 → 성능 탐색<small>산점도 · 프로젝트별 색</small></h2>
+    <div class="row"><select style="width:auto;flex:1" onchange="state.data.sx=this.value;render()">${sel(s.sx)}</select><span class="muted">→</span><select style="width:auto;flex:1" onchange="state.data.sy=this.value;render()">${sel(s.sy)}</select></div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) 230px;align-items:start;margin-top:10px">${scatterSvg(pts,xv,yv,cmap)}
+      <div><div class="muted" style="margin-bottom:6px">${pts.length}건 · 상관계수 r = ${fmt(pearson(pts),2)}</div>${projs.map(p=>`<div style="font-size:12.5px;margin:2px 0"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cmap[p]};margin-right:6px;vertical-align:-1px"></i>${esc((P(p)?.name||"").replace(/^\[예시\]\s*/,""))}</div>`).join("")}${projs.length>8?`<div class="muted">9번째부터는 회색</div>`:""}</div></div>
+    <p class="help">점이 한 방향으로 모이면 관계가 있다는 뜻이에요. 프로젝트별로 층이 지면 제품군 효과가 큰 거예요. '제외'한 실험은 빼고 그려요. 위의 프로젝트 필터가 여기에도 적용돼요.</p></div>`}
+function pearson(pts){const n=pts.length;if(n<3)return NaN;const mx=pts.reduce((a,p)=>a+p.x,0)/n,my=pts.reduce((a,p)=>a+p.y,0)/n;let sxy=0,sxx=0,syy=0;pts.forEach(p=>{sxy+=(p.x-mx)*(p.y-my);sxx+=(p.x-mx)**2;syy+=(p.y-my)**2});return sxx&&syy?sxy/Math.sqrt(sxx*syy):NaN}
+function scatterSvg(pts,xv,yv,cmap){const W=560,H=300,L=54,R=14,T=16,B=38;if(!pts.length)return`<div class="empty">두 변수 모두 값이 있는 실험이 없어요</div>`;
+  const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);let xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);if(xmax===xmin){xmin-=1;xmax+=1}if(ymax===ymin){ymin-=1;ymax+=1}
+  const px=(xmax-xmin)*0.05,py=(ymax-ymin)*0.05;xmin-=px;xmax+=px;ymin-=py;ymax+=py;
+  const X=x=>L+(x-xmin)/(xmax-xmin)*(W-L-R),Y=y=>T+(1-(y-ymin)/(ymax-ymin))*(H-T-B);const t=n=>Array.from({length:n},(_,i)=>i/(n-1));
+  return`<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;display:block">
+    ${t(5).map(k=>{const y=ymin+k*(ymax-ymin);return`<line x1="${L}" x2="${W-R}" y1="${Y(y)}" y2="${Y(y)}" stroke="var(--line)"/><text x="${L-6}" y="${Y(y)+4}" text-anchor="end">${fmt(y)}</text>`}).join("")}
+    ${t(6).map(k=>{const x=xmin+k*(xmax-xmin);return`<text x="${X(x)}" y="${H-B+16}" text-anchor="middle">${fmt(x)}</text>`}).join("")}
+    ${pts.map(p=>`<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="4.5" fill="${cmap[p.p]}" stroke="var(--surface)" stroke-width="1.5"><title>${esc((P(p.p)?.name||"").replace(/^\[예시\]\s*/,""))} · ${esc(p.e.label||p.e.date)}
+${esc(xv.name)}: ${fmt(p.x)}   ${esc(yv.name)}: ${fmt(p.y)}</title></circle>`).join("")}
+    <text x="${(L+W-R)/2}" y="${H-4}" text-anchor="middle">${esc(label(xv))}</text><text x="${L}" y="${T-4}" font-weight="600">${esc(label(yv))}</text></svg>`}
 function toggleProj(id){const s=state.data.projects;s.has(id)?s.delete(id):s.add(id);state.data.page=1;render()}
 async function editVar(id){await newVariableDlg(V(id))}
 async function mergeVar(id){const v=V(id);let dst=null;
@@ -428,7 +453,7 @@ function mlBar(){
     ${ml.trained&&state.pred.showModel?modelDetail(ml):""}</div>`;
 }
 function modelDetail(ml){
-  const fl=[...(ml.features||[]),{id:ml.project_key,name:"제품군(프로젝트)"}];
+  const fl=[...(ml.features||[]),...(ml.categoricals||[]),{id:ml.project_key,name:"제품군(프로젝트)"}];
   return `<div class="twrap" style="margin-top:12px;max-height:none"><table style="min-width:0"><tr><th>성능</th><th>채택 모델</th><th class="num">학습 건수</th><th class="num">R² (5-fold CV)</th><th class="num">MAE</th><th>후보별 R²</th><th>중요 변수 (상위 3)</th></tr>
     ${ml.targets.map(t=>t.ok?`<tr><td>${esc(t.name)}</td><td>${esc(t.model)}</td><td class="num">${t.n}</td><td class="num" style="color:${t.r2>=0.7?"var(--ok)":t.r2>=0.4?"var(--warn)":"var(--bad)"}">${t.r2.toFixed(2)}</td><td class="num">${fmt(t.mae)}</td><td class="muted">${Object.entries(t.scores).map(([k,s])=>`${k} ${s.r2.toFixed(2)}`).join(" · ")}</td>
       <td class="muted">${Object.entries(t.importance).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${esc(fl.find(f=>f.id===k)?.name||k)} ${(v*100).toFixed(0)}%`).join(" · ")}</td></tr>`:`<tr><td>${esc(t.name)}</td><td colspan="6" class="muted">${esc(t.reason)}</td></tr>`).join("")}</table></div>
@@ -445,7 +470,7 @@ function predScreen(){
     <div class="card"><h2>입력<small>조성·공정 조건</small></h2>
       <label class="f">프로젝트 (제품군 효과 · 규격 판정에 사용)</label><select onchange="state.pred.project=this.value;state.pred.result=null;render()"><option value="">(선택 안 함 · 전체 평균 기준)</option>${D.projects.map(x=>`<option value="${x.id}" ${s.project===x.id?"selected":""}>${esc(x.name)}</option>`).join("")}</select>
       ${p?`<div class="row" style="margin-top:8px"><button class="s" onclick="loadLatest()">이 프로젝트 최근 실험 값 불러오기</button><button class="s" onclick="state.pred.values={};render()">중앙값으로</button></div>`:""}
-      ${feats.length?`<div class="frm" style="margin-top:12px">${feats.map(f=>`<div><label class="f" style="color:var(--${KCLS[f.kind]})">${esc(f.name)}${f.unit?` <span style="font-weight:400">(${esc(f.unit)})</span>`:""}</label><input type="number" step="any" placeholder="${fmt(f.median,f.decimals)}" value="${esc(curVal(f))}" oninput="state.pred.values['${f.id}']=this.value"><div class="rng">데이터 ${fmt(f.min,f.decimals)}~${fmt(f.max,f.decimals)}</div></div>`).join("")}</div>
+      ${(feats.length||(ml.categoricals||[]).length)?`<div class="frm" style="margin-top:12px">${feats.map(f=>`<div><label class="f" style="color:var(--${KCLS[f.kind]})">${esc(f.name)}${f.unit?` <span style="font-weight:400">(${esc(f.unit)})</span>`:""}</label><input type="number" step="any" placeholder="${fmt(f.median,f.decimals)}" value="${esc(curVal(f))}" oninput="state.pred.values['${f.id}']=this.value"><div class="rng">데이터 ${fmt(f.min,f.decimals)}~${fmt(f.max,f.decimals)}</div></div>`).join("")}${(ml.categoricals||[]).map(c=>`<div><label class="f" style="color:var(--${KCLS[c.kind]})">${esc(c.name)}</label><select onchange="state.pred.values['${c.id}']=this.value"><option value="">(선택 안 함)</option>${c.levels.map(l=>`<option ${s.values[c.id]===l?"selected":""}>${esc(l)}</option>`).join("")}</select><div class="rng">${c.levels.length}가지</div></div>`).join("")}</div>
       <div class="row" style="margin-top:14px"><button class="p" onclick="predict()" ${busy?"disabled":""}>성능 예측</button><span class="help">비워 둔 칸은 데이터 중앙값으로 채워요</span></div>`:`<div class="empty" style="margin-top:12px">먼저 '학습'을 눌러 주세요</div>`}
     </div>
     <div>${s.result?predResult(s.result):`<div class="card"><div class="empty">왼쪽에서 조건을 넣고 '성능 예측'을 누르면 여기에 결과가 나와요.</div></div>`}</div>
@@ -465,6 +490,7 @@ function predResult(r){
   if(r.project_warning)warns.push(r.project_warning);
   if(r.out_of_range.length)warns.push("데이터 범위 밖이라 믿기 어려운 입력: "+r.out_of_range.map(fname).join(", "));
   if(r.missing.length)warns.push("중앙값으로 채운 입력: "+r.missing.map(fname).join(", "));
+  if((r.unknown_levels||[]).length)warns.push("학습 데이터에 없던 값이라 무시한 입력: "+r.unknown_levels.map(fname).join(", "));
   const tm=Object.fromEntries((ml.targets||[]).map(t=>[t.id,t]));
   return `<div class="card" style="margin-bottom:14px"><h2>예측 성능<small>±는 95% 구간</small></h2>
     ${warns.map(w=>`<div class="note">${esc(w)}</div>`).join("")}
@@ -482,7 +508,7 @@ function predResult(r){
   <div class="card"><h2>변수 중요도<small>${esc(V(s.sensT)?.name||"")}</small></h2>${importance(tm[s.sensT])}</div></div>
   <div class="card"><h2>가장 비슷한 과거 실험<small>표준화 거리</small></h2>${similarTable(r.nearest)}</div>`;
 }
-function importance(t){if(!t||!t.importance)return`<div class="muted">-</div>`;const fl=[...(D.ml.features||[]),{id:D.ml.project_key,name:"제품군(프로젝트)"}];
+function importance(t){if(!t||!t.importance)return`<div class="muted">-</div>`;const fl=[...(D.ml.features||[]),...(D.ml.categoricals||[]),{id:D.ml.project_key,name:"제품군(프로젝트)"}];
   const items=Object.entries(t.importance).sort((a,b)=>b[1]-a[1]);const mx=items[0]?.[1]||1;
   return`<div class="imp">${items.map(([k,v])=>`<span>${esc(fl.find(f=>f.id===k)?.name||k)}</span><i style="width:${(v/mx*100).toFixed(0)}%"></i><span class="num muted">${(v*100).toFixed(0)}%</span>`).join("")}</div>`}
 function similarTable(list){if(!list||!list.length)return`<div class="muted">-</div>`;const vs=vars();
@@ -513,13 +539,14 @@ function designScreen(){
       ${feats.length?`<table style="min-width:0;margin-top:10px"><tr><th>성능</th><th>규격</th><th></th></tr>${s.specs.map((sp,i)=>`<tr><td>${esc(V(sp.var)?.name||"?")}</td><td><input class="w" value="${esc(sp.spec)}" onchange="state.design.specs[${i}].spec=this.value"></td><td><button class="x" onclick="state.design.specs.splice(${i},1);render()">×</button></td></tr>`).join("")}</table>
       <div class="row" style="margin-top:8px"><select id="dsVar" style="width:auto;flex:1">${tvs.filter(t=>!s.specs.some(x=>x.var===t.id)).map(t=>`<option value="${t.id}">${esc(label(t))}</option>`).join("")}</select><input id="dsTxt" placeholder="≥70" style="flex:1"><button class="s" onclick="addDesignSpec()">추가</button></div>
       <h2 style="margin-top:16px">고정할 조건<small>잠그면 그 값으로 두고 나머지만 찾아요</small></h2>
-      <div class="frm">${feats.map(f=>`<div><label class="lock"><input type="checkbox" ${f.id in s.fixed?"checked":""} onchange="toggleFixed('${f.id}',this.checked,${f.median})"><span style="color:var(--${KCLS[f.kind]});font-weight:600;font-size:12px">${esc(f.name)}</span></label><input type="number" step="any" ${f.id in s.fixed?"":"disabled"} value="${esc(s.fixed[f.id]??"")}" placeholder="${fmt(f.median,f.decimals)}" oninput="state.design.fixed['${f.id}']=this.value"><div class="rng">${fmt(f.min,f.decimals)}~${fmt(f.max,f.decimals)}</div></div>`).join("")}</div>
+      <div class="frm">${feats.map(f=>`<div><label class="lock"><input type="checkbox" ${f.id in s.fixed?"checked":""} onchange="toggleFixed('${f.id}',this.checked,${f.median})"><span style="color:var(--${KCLS[f.kind]});font-weight:600;font-size:12px">${esc(f.name)}</span></label><input type="number" step="any" ${f.id in s.fixed?"":"disabled"} value="${esc(s.fixed[f.id]??"")}" placeholder="${fmt(f.median,f.decimals)}" oninput="state.design.fixed['${f.id}']=this.value"><div class="rng">${fmt(f.min,f.decimals)}~${fmt(f.max,f.decimals)}</div></div>`).join("")}${(ml.categoricals||[]).map(c=>`<div><label class="lock"><input type="checkbox" ${c.id in s.fixed?"checked":""} onchange="toggleFixedCat('${c.id}',this.checked,this.nextElementSibling)"><span style="color:var(--${KCLS[c.kind]});font-weight:600;font-size:12px">${esc(c.name)}</span></label><select ${c.id in s.fixed?"":"disabled"} onchange="state.design.fixed['${c.id}']=this.value">${c.levels.map(l=>`<option ${s.fixed[c.id]===l?"selected":""}>${esc(l)}</option>`).join("")}</select><div class="rng">${c.levels.length}가지 중 하나로 고정</div></div>`).join("")}</div>
       <div class="row" style="margin-top:14px"><button class="p" onclick="design()" ${busy?"disabled":""}>${busy?'<span class="spin"></span>찾는 중':"조성 후보 찾기"}</button><span class="help">데이터 범위 안에서 2,000점을 탐색해요</span></div>`:`<div class="empty" style="margin-top:12px">먼저 '학습'을 눌러 주세요</div>`}
     </div>
     <div>${s.result?designResult(s.result):`<div class="card"><div class="empty">규격을 넣고 '조성 후보 찾기'를 누르면 추천 조성이 여기에 나와요.</div></div>`}</div></div>`;
 }
 function addDesignSpec(){const v=$("dsVar").value,t=$("dsTxt").value.trim();if(!v||!t)return toast("성능과 규격을 적어 주세요");if(!parseSpec(t))return toast("규격 형식을 확인하세요 (≥70, ≤1.5, 70~80, 100±5)",3500);state.design.specs.push({var:v,spec:t});render()}
 function toggleFixed(id,on,med){if(on)state.design.fixed[id]=state.design.fixed[id]??med;else delete state.design.fixed[id];render()}
+function toggleFixedCat(id,on){const c=(D.ml.categoricals||[]).find(x=>x.id===id);if(on)state.design.fixed[id]=state.design.fixed[id]??c.levels[0];else delete state.design.fixed[id];render()}
 async function design(){const s=state.design;if(!s.specs.length)return toast("규격을 하나 이상 넣어 주세요");busy=true;render();
   try{s.result=await api("/api/ml/inverse","POST",{specs:s.specs,fixed:s.fixed,project:s.project||null,n:5})}catch(e){toast(e.message,4000)}busy=false;render()}
 function designResult(r){
@@ -527,7 +554,7 @@ function designResult(r){
   return `${r.project_warning?`<div class="note">${esc(r.project_warning)}</div>`:""}${r.message?`<div class="note bad">${esc(r.message)}</div>`:`<div class="note ok">규격을 만족할 것으로 예측되는 후보를 찾았어요. 점수가 낮을수록 좋고, '거리'가 작을수록 실제 실험한 조성과 가까워 믿을 만해요.</div>`}
   <div class="grid" style="gap:10px">${r.candidates.map((c,i)=>`<div class="cand ${i===0&&c.all_pass?"best":""}"><div class="hd"><b>후보 ${i+1}</b>${c.all_pass?`<span class="chip ok">규격 만족</span>`:`<span class="chip bad">일부 미달</span>`}<span class="muted">점수 ${c.score} · 데이터와 거리 ${c.distance}${c.nearest[0]?` · 가장 가까운 실험: ${esc(c.nearest[0].project_name.replace(/^\[예시\]\s*/,""))} ${esc(c.nearest[0].label)}`:""}</span><span class="grow"></span>
       <button class="s" onclick="toPred(${i})">예측 화면에서 보기</button><button class="s p" onclick="registerCand(${i})">실험으로 등록</button></div>
-    <div class="kv">${feats.map(f=>`<div><span style="color:var(--${KCLS[f.kind]})">${esc(f.name)}${f.unit?` (${esc(f.unit)})`:""}${f.id in r.fixed?" 🔒":""}</span><b>${fmt(c.values[f.id],f.decimals)}</b></div>`).join("")}</div>
+    <div class="kv">${feats.map(f=>`<div><span style="color:var(--${KCLS[f.kind]})">${esc(f.name)}${f.unit?` (${esc(f.unit)})`:""}${f.id in r.fixed?" 🔒":""}</span><b>${fmt(c.values[f.id],f.decimals)}</b></div>`).join("")}${(D.ml.categoricals||[]).map(cv=>`<div><span style="color:var(--${KCLS[cv.kind]})">${esc(cv.name)}${cv.id in r.fixed?" 🔒":""}</span><b>${esc(c.values[cv.id]??"-")}</b></div>`).join("")}</div>
     <div class="row" style="margin-top:8px;gap:6px">${c.targets.map(t=>`<span class="chip ${t.result==="Pass"?"ok":t.result==="Fail"?"bad":""}" title="95% 구간 ${fmt(t.lo)}~${fmt(t.hi)}">${esc(t.name)} <b>${fmt(t.pred)}</b> (${esc(t.spec)})${t.result==="Pass"&&(t.result_lo==="Fail"||t.result_hi==="Fail")?" ⚠":""}</span>`).join("")}
       ${c.others.map(t=>`<span class="chip" title="규격 없음 · 참고">${esc(t.name)} ${fmt(t.pred)}</span>`).join("")}</div></div>`).join("")}</div>
   <p class="help">⚠ 는 예측값은 규격 안이지만 95% 구간 일부가 규격 밖이라는 뜻이에요. 후보는 서로 다른 조성 방향으로 골라 두었으니 2~3개를 같이 실험하면 모델도 빨리 좋아져요.</p>`;
