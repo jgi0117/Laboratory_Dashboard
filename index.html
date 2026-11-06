@@ -341,7 +341,7 @@ async function newVariableDlg(init={}){
   return r.variable;
 }
 function goPred(pid){state.pred.project=pid;state.pred.result=null;screen="pred";render();window.scrollTo(0,0)}
-function goDesign(pid){state.design.project=pid;state.design.specs=(P(pid)?.specs||[]).map(s=>({...s}));state.design.result=null;state.design.pareto=null;screen="design";render();window.scrollTo(0,0)}
+function goDesign(pid){state.design.project=pid;state.design.specs=(P(pid)?.specs||[]).map(s=>({...s}));state.design.result=null;state.design.pareto=null;state.design.explore=null;screen="design";render();window.scrollTo(0,0)}
 
 // ---------- 가져오기 ----------
 function pasteDlg(pid){
@@ -396,6 +396,7 @@ function dataScreen(){
     </tbody></table></div>
     <div class="pager"><button class="s" ${s.page<=1?"disabled":""} onclick="state.data.page--;render()">이전</button><span>${s.page} / ${np}</span><button class="s" ${s.page>=np?"disabled":""} onclick="state.data.page++;render()">다음</button></div></div>
   ${scatterCard(rows)}
+  ${corrCard(rows)}
   <div class="grid g2" style="grid-template-columns:minmax(0,3fr) minmax(300px,2fr)">
     <div class="card"><h2>변수 사전<small>모든 프로젝트 공통</small></h2>
       <div class="twrap" style="max-height:none"><table style="min-width:0"><tr><th>구분</th><th>이름</th><th>단위</th><th>별칭</th><th class="num">건수</th><th class="num">평균</th><th class="num">범위</th><th></th></tr>
@@ -420,6 +421,19 @@ function scatterCard(rows){const s=state.data;const vs=vars();const tv=targets()
     <div class="grid" style="grid-template-columns:minmax(0,1fr) 230px;align-items:start;margin-top:10px">${scatterSvg(pts,xv,yv,cmap)}
       <div><div class="muted" style="margin-bottom:6px">${pts.length}건 · 상관계수 r = ${fmt(pearson(pts),2)}</div>${projs.map(p=>`<div style="font-size:12.5px;margin:2px 0"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cmap[p]};margin-right:6px;vertical-align:-1px"></i>${esc((P(p)?.name||"").replace(/^\[예시\]\s*/,""))}</div>`).join("")}${projs.length>8?`<div class="muted">9번째부터는 회색</div>`:""}</div></div>
     <p class="help">점이 한 방향으로 모이면 관계가 있다는 뜻이에요. 프로젝트별로 층이 지면 제품군 효과가 큰 거예요. '제외'한 실험은 빼고 그려요. 위의 프로젝트 필터가 여기에도 적용돼요.</p></div>`}
+function corrCard(rows){const vs=vars().filter(v=>rows.some(e=>Number.isFinite(num(e.values[v.id]))));if(vs.length<2)return"";
+  const M=vs.map(a=>vs.map(b=>{const pts=rows.filter(e=>!e.excluded&&Number.isFinite(num(e.values[a.id]))&&Number.isFinite(num(e.values[b.id]))).map(e=>({x:num(e.values[a.id]),y:num(e.values[b.id])}));return pts.length>=5?pearson(pts):NaN}));
+  const n=vs.length,cell=Math.max(22,Math.min(34,Math.floor(620/n))),L=150,T=110,W=L+cell*n+10,H=T+cell*n+10;
+  const col=r=>{if(!Number.isFinite(r))return"var(--sunk)";const a=Math.min(1,Math.abs(r));const c=r>=0?[42,120,214]:[235,104,52];const g=[225,224,217];const m=c.map((v,i)=>Math.round(g[i]+(v-g[i])*a));return`rgb(${m.join(",")})`};
+  const short=s=>s.length>12?s.slice(0,11)+"…":s;
+  return `<div class="card" style="margin-bottom:14px"><h2>변수 간 상관<small>피어슨 r · 칸을 누르면 위 산점도로</small></h2>
+    <div style="overflow:auto"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;max-width:100%">
+      ${vs.map((v,j)=>`<text transform="translate(${L+cell*j+cell/2+4},${T-6}) rotate(-55)" font-size="11" fill="var(--${KCLS[v.kind]})">${esc(short(v.name))}</text>`).join("")}
+      ${vs.map((v,i)=>`<text x="${L-6}" y="${T+cell*i+cell/2+4}" text-anchor="end" font-size="11" fill="var(--${KCLS[v.kind]})">${esc(short(v.name))}</text>`).join("")}
+      ${vs.map((a,i)=>vs.map((b,j)=>{const r=M[i][j];const dark=Number.isFinite(r)&&Math.abs(r)>0.55;return`<g style="cursor:pointer" onclick="state.data.sx='${b.id}';state.data.sy='${a.id}';render();window.scrollTo(0,0)"><rect x="${L+cell*j+1}" y="${T+cell*i+1}" width="${cell-2}" height="${cell-2}" rx="3" fill="${col(r)}"><title>${esc(a.name)} × ${esc(b.name)}: r = ${fmt(r,2)}</title></rect>${Number.isFinite(r)&&i!==j?`<text x="${L+cell*j+cell/2}" y="${T+cell*i+cell/2+3.5}" text-anchor="middle" font-size="${cell>=30?10:9}" fill="${dark?"#fff":"var(--ink2)"}" pointer-events="none">${r.toFixed(2).replace(/^(-?)0\./,"$1.")}</text>`:""}</g>`}).join("")).join("")}
+    </svg></div>
+    <div class="row muted" style="gap:14px;margin-top:6px"><span><i style="display:inline-block;width:12px;height:12px;background:rgb(42,120,214);border-radius:3px;vertical-align:-2px"></i> 양의 상관 (같이 커짐)</span><span><i style="display:inline-block;width:12px;height:12px;background:rgb(235,104,52);border-radius:3px;vertical-align:-2px"></i> 음의 상관 (반대로 움직임)</span><span>값이 5건 미만인 쌍은 비움</span></div>
+    <p class="help">상관은 '같이 움직이는 정도'일 뿐 원인은 아니에요. 제품군 차이 때문에 생긴 상관도 섞여 있으니, 위 산점도에서 프로젝트별 색을 같이 보세요.</p></div>`}
 function pearson(pts){const n=pts.length;if(n<3)return NaN;const mx=pts.reduce((a,p)=>a+p.x,0)/n,my=pts.reduce((a,p)=>a+p.y,0)/n;let sxy=0,sxx=0,syy=0;pts.forEach(p=>{sxy+=(p.x-mx)*(p.y-my);sxx+=(p.x-mx)**2;syy+=(p.y-my)**2});return sxx&&syy?sxy/Math.sqrt(sxx*syy):NaN}
 function scatterSvg(pts,xv,yv,cmap){const W=560,H=300,L=54,R=14,T=16,B=38;if(!pts.length)return`<div class="empty">두 변수 모두 값이 있는 실험이 없어요</div>`;
   const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);let xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);if(xmax===xmin){xmin-=1;xmax+=1}if(ymax===ymin){ymin-=1;ymax+=1}
@@ -546,8 +560,23 @@ function designScreen(){
       <div class="row" style="margin-top:14px"><button class="p" onclick="design()" ${busy?"disabled":""}>${busy?'<span class="spin"></span>찾는 중':"조성 후보 찾기"}</button><span class="help">데이터 범위 안에서 2,000점을 탐색해요</span></div>`:`<div class="empty" style="margin-top:12px">먼저 '학습'을 눌러 주세요</div>`}
     </div>
     <div>${s.result?designResult(s.result):`<div class="card"><div class="empty">규격을 넣고 '조성 후보 찾기'를 누르면 추천 조성이 여기에 나와요.</div></div>`}</div></div>
-  ${feats.length?tradeoffCard():""}`;
+  ${feats.length?tradeoffCard():""}
+  ${feats.length?exploreCard():""}`;
 }
+function exploreCard(){const s=state.design;
+  return `<div class="card" style="margin-top:14px"><h2>다음 실험 추천<small>모델이 가장 자신 없는 조성 — 해 보면 모델이 가장 많이 배워요 (위의 규격·고정 조건 적용)</small></h2>
+    <div class="row"><button class="p" onclick="explore()" ${busy?"disabled":""}>불확실한 조성 3개 추천</button><span class="help">규격을 만족할 것으로 보이는 범위 안에서, 예측 구간이 넓고 기존 실험과 먼 조성을 고릅니다.</span></div>
+    ${s.explore?exploreResult(s.explore):""}</div>`}
+async function explore(){const s=state.design;busy=true;render();try{s.explore=await api("/api/ml/explore","POST",{specs:s.specs,fixed:s.fixed,project:s.project||null,n:3})}catch(e){toast(e.message,4000)}busy=false;render()}
+function exploreResult(r){const feats=D.ml.features||[];const cats=D.ml.categoricals||[];
+  return `${r.project_warning?`<div class="note">${esc(r.project_warning)}</div>`:""}<div class="grid" style="gap:10px;margin-top:10px">${r.candidates.map((c,i)=>`<div class="cand"><div class="hd"><b>탐색 ${i+1}</b><span class="chip warn">모델 불확실성 ${c.uncertainty}</span><span class="muted">데이터와 거리 ${c.distance}${c.nearest[0]?` · 가장 가까운 실험: ${esc(c.nearest[0].label)}`:""}</span><span class="grow"></span>
+      <button class="s" onclick="toPredAny(state.design.explore.candidates[${i}].values)">예측 화면에서 보기</button><button class="s p" onclick="registerAny(state.design.explore.candidates[${i}],'탐색')">실험으로 등록</button></div>
+    <div class="kv">${feats.map(f=>`<div><span style="color:var(--${KCLS[f.kind]})">${esc(f.name)}${f.unit?` (${esc(f.unit)})`:""}${f.id in r.fixed?" 🔒":""}</span><b>${fmt(c.values[f.id],f.decimals)}</b></div>`).join("")}${cats.map(cv=>`<div><span style="color:var(--${KCLS[cv.kind]})">${esc(cv.name)}</span><b>${esc(c.values[cv.id]??"-")}</b></div>`).join("")}</div>
+    <div class="row" style="margin-top:8px;gap:6px">${c.targets.map(t=>`<span class="chip ${t.result==="Pass"?"ok":t.result==="Fail"?"bad":""}" title="95% 구간 ${fmt(t.lo)}~${fmt(t.hi)}">${esc(t.name)} <b>${fmt(t.pred)}</b> ±${fmt(1.96*t.sd)}${t.spec?` (${esc(t.spec)})`:""}</span>`).join("")}</div></div>`).join("")}</div>
+  <p class="help">± 는 95% 구간의 반폭(잡음 + 모델 불확실성). '모델 불확실성'은 데이터가 적은 영역에서 커지고, 결과를 측정해 넣고 다시 학습하면 줄어들어요. 성능 칩은 모델이 자신 없는 순서예요.</p>`}
+function toPredAny(values){state.pred.project=state.design.project;state.pred.values={...values};state.pred.result=null;screen="pred";render();predict()}
+async function registerAny(c,tag){const s=state.design;if(!s.project)return toast("먼저 프로젝트를 고르세요");const n=exps(s.project).filter(e=>e.source==="candidate").length+1;
+  await mutate("/api/experiments","POST",[{project:s.project,date:today(),label:`ML${tag}-${n}`,note:`${tag} 추천 조성 (예측: `+c.targets.map(t=>`${t.name} ${fmt(t.pred)}`).join(", ")+")",source:"candidate",values:c.values}],"실험으로 등록했어요")}
 function tradeoffCard(){const s=state.design;const ml=D.ml;const tvs=targets().filter(t=>(ml.targets||[]).some(x=>x.id===t.id&&x.ok));
   if(!s.oa||!V(s.oa))s.oa=(tvs[0]||{}).id;
   if(!s.ob||!V(s.ob)){const hz=tvs.find(t=>/haze|헤이즈|색차|편차/i.test(t.name)&&t.id!==s.oa);s.ob=(hz||tvs.find(t=>t.id!==s.oa)||tvs[0]||{}).id;s.db=hz?"min":"max"}

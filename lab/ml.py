@@ -258,6 +258,8 @@ class Engine:
                         best = (key, r2, mae, rmse, float(resid.std()))
                 key, r2, mae, rmse, rsd = best
                 est = _candidates()[key].fit(Xi, yi)
+                # 채택 모델과 별도로 RF를 하나 더 두어 '모델이 자신 없는 정도'(트리 분산)를 어디서나 잴 수 있게 한다
+                unc = est if key == "rf" else _candidates()["rf"].fit(Xi, yi)
                 imp = permutation_importance(est, Xi, yi, n_repeats=5, random_state=0)
             vals = [float(max(v, 0.0)) for v in imp.importances_mean]
             imps = {f: vals[j] for j, f in enumerate(feats)}
@@ -272,7 +274,7 @@ class Engine:
             clip_lo, clip_hi = float(yi.min()) - 0.15 * yspan, float(yi.max()) + 0.15 * yspan
             if str(vmap.get(tid, {}).get("unit", "")).strip() == "%" and yi.min() >= 0 and yi.max() <= 100:
                 clip_lo, clip_hi = max(clip_lo, 0.0), min(clip_hi, 100.0)     # 퍼센트는 0~100 밖으로 나가지 않게
-            models[tid] = {"ok": True, "n": n, "model": est, "kind": key, "name": MODEL_NAMES[key], "clip": (clip_lo, clip_hi),
+            models[tid] = {"ok": True, "n": n, "model": est, "unc": unc, "kind": key, "name": MODEL_NAMES[key], "clip": (clip_lo, clip_hi),
                            "r2": round(r2, 3), "mae": round(mae, 4), "rmse": round(rmse, 4), "resid_sd": rsd,
                            "scores": scores, "importance": {f: round(v / tot, 4) for f, v in imps.items()},
                            "y_range": (float(yi.min()), float(yi.max())), "y_sd": float(yi.std())}
@@ -335,13 +337,20 @@ class Engine:
         pred = est.predict(Xm)
         if m.get("clip"):
             pred = np.clip(pred, m["clip"][0], m["clip"][1])
-        sd = np.full(len(Xm), m["resid_sd"])
-        if m["kind"] == "rf":
-            rf = est.steps[-1][1]
-            Xt = est[:-1].transform(Xm)
-            trees = np.array([t.predict(Xt) for t in rf.estimators_])
-            sd = np.maximum(sd, trees.std(axis=0))
+        # 구간 = 잡음(교차검증 잔차) + 모델 불확실성(트리 분산)
+        sd = np.sqrt(m["resid_sd"] ** 2 + self._epistemic(Xm, tid) ** 2)
         return pred, sd
+
+    def _epistemic(self, Xm, tid):
+        """모델이 그 입력에서 얼마나 자신 없는지 (RF 트리별 예측의 표준편차). 데이터가 쌓이면 줄어든다."""
+        m = self.models[tid]
+        unc = m.get("unc") or (m["model"] if m["kind"] == "rf" else None)
+        if unc is None:
+            return np.zeros(len(Xm))
+        rf = unc.steps[-1][1]
+        Xt = unc[:-1].transform(Xm)
+        trees = np.array([t.predict(Xt) for t in rf.estimators_])
+        return trees.std(axis=0)
 
     def _standardize(self, Xm):
         nf = self.n_num
@@ -523,6 +532,62 @@ class Engine:
         return {"front": front_pts, "cloud": cloud, "constrained": constrained, "n_feasible": int(ok.sum()) if parsed else len(X),
                 "fixed": {**fixed_num, **fixed_cat}, "project_warning": self._project_warning(project),
                 "message": "" if (constrained or not parsed) else "규격을 모두 만족하는 점이 없어서 규격을 무시하고 경계를 그렸어요."}
+
+    # ---------- 탐색 실험 추천 (모델이 가장 불확실한 곳) ----------
+    def explore(self, specs=None, fixed=None, project=None, n=3, n_samples=3000, seed=0):
+        """다음에 해 볼 실험 추천: 규격(있으면)을 만족할 것으로 보이면서 예측 불확실성이 가장 큰, 서로 다른 조성 n개.
+        이런 실험을 하면 모델이 가장 많이 배운다 (능동 학습)."""
+        self._need()
+        parsed = []
+        for s in specs or []:
+            sp = dataset.parse_spec(s.get("spec"))
+            if sp and s.get("var") in self.models and self.models[s["var"]]["ok"]:
+                parsed.append((s["var"], sp))
+        rng = np.random.default_rng(seed)
+        X, fixed_num, fixed_cat, _ = self._sample_inputs(fixed, project, n_samples, rng)
+        ok_models = [tid for tid, m in self.models.items() if m["ok"]]
+        preds = {tid: self._predict_matrix(X, tid) for tid in ok_models}
+        unc = np.zeros(len(X))
+        for tid in ok_models:
+            unc += self._epistemic(X, tid) / (self.ysd.get(tid) or 1.0)     # 잡음 말고 '모델이 모르는 정도'만
+        unc /= max(len(ok_models), 1)
+        feas = np.ones(len(X), dtype=bool)
+        for tid, sp in parsed:
+            feas &= np.array([dataset.judge(sp["text"], float(v)) != "Fail" for v in preds[tid][0]])
+        if not feas.any():
+            feas[:] = True
+        S = self._standardize(X)
+        S_train = self._standardize(self.X)
+        dist = np.sqrt(((S[:, None, :] - S_train[None, :, :]) ** 2).mean(axis=2)).min(axis=1)
+        score = np.where(feas, unc + 0.5 * dist, -np.inf)
+        order = np.argsort(-score)
+        chosen = []
+        for i in order:
+            if not np.isfinite(score[i]):
+                break
+            if all(np.sqrt(((S[i] - S[k]) ** 2).mean()) > 0.15 for k in chosen):
+                chosen.append(i)
+            if len(chosen) >= n:
+                break
+        vmap = {v["id"]: v for v in self.store.variables()}
+        out = []
+        for i in chosen:
+            values = self._values_of(X[i])
+            targets = []
+            for tid in ok_models:
+                p, sd = float(preds[tid][0][i]), float(preds[tid][1][i])
+                ep = float(self._epistemic(X[i:i + 1], tid)[0])
+                item = {"id": tid, "name": vmap[tid]["name"], "unit": vmap[tid].get("unit", ""), "pred": p, "sd": sd, "epistemic": ep,
+                        "lo": p - 1.96 * sd, "hi": p + 1.96 * sd, "rel": ep / (self.ysd.get(tid) or 1.0)}
+                sp = next((s for t, s in parsed if t == tid), None)
+                if sp:
+                    item["spec"], item["result"] = sp["text"], dataset.judge(sp["text"], p)
+                targets.append(item)
+            targets.sort(key=lambda t: -t["rel"])
+            out.append({"values": values, "targets": targets, "uncertainty": round(float(unc[i]), 3), "distance": round(float(dist[i]), 3),
+                        "nearest": self.similar(values, project=project, k=1)})
+        return {"candidates": out, "fixed": {**fixed_num, **fixed_cat}, "project_warning": self._project_warning(project),
+                "constrained": bool(parsed)}
 
     # ---------- 역방향 ----------
     def inverse(self, specs, fixed=None, project=None, n=5, n_samples=2000, seed=0, prefer_known=0.3):

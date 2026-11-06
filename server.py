@@ -229,6 +229,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not self._write_guard():
                     return
                 return self._send(200, start_training())
+            if path == "/api/ml/explore":
+                with ML_LOCK:
+                    return self._send(200, ENGINE.explore(body.get("specs"), body.get("fixed"), body.get("project"), n=int(body.get("n") or 3)))
             if path == "/api/ml/pareto":
                 with ML_LOCK:
                     return self._send(200, ENGINE.pareto(body.get("objectives") or [], body.get("specs"), body.get("fixed"), body.get("project")))

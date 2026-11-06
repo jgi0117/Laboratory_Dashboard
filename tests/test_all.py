@@ -240,6 +240,15 @@ class TestML(unittest.TestCase):
         with self.assertRaises(ml.NotTrained):
             self.eng.pareto([{"var": "v0009", "dir": "max"}])
 
+    def test_explore(self):
+        r = self.eng.explore(specs=self.s.project("p0001")["specs"], fixed={"v0006": 105}, project="p0001", n=3)
+        json.dumps(r)
+        self.assertEqual(len(r["candidates"]), 3)
+        for c in r["candidates"]:
+            self.assertEqual(c["values"]["v0006"], 105.0)
+            self.assertTrue(all(t.get("result") != "Fail" for t in c["targets"] if t.get("spec")))
+        self.assertGreater(r["candidates"][0]["uncertainty"], 0)
+
     def test_percent_clip(self):
         r = self.eng.predict({"v0001": 16, "v0008": 5}, project="p0001")
         ir = next(t for t in r["targets"] if t["id"] == "v0010")

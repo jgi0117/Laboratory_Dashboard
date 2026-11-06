@@ -173,7 +173,8 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
   <h2>모든 프로젝트를 한 표로 — 열 이름은 가져올 때 자동으로 맞춘다</h2>
   <div class="cols">
     <div><img class="shot" src="img/s2_data.jpg" alt="통합 데이터 화면"><p class="cap">통합 실험 표(135건) + 변수 사전(이름·단위·별칭·건수·범위) + 점검 목록. CSV/엑셀 내려받기.</p></div>
-    <div><img class="shot" src="img/import_mapping.jpg" alt="가져오기 열 매핑 화면"><p class="cap">가져오기: 열마다 <b>기존 변수 / 새 변수 / 날짜 / 실험명 / 메모</b>를 제안. "바인더 함량 비율"처럼 비슷한 이름은 경고와 함께 기존 변수로 맞추고, 그 이름은 별칭으로 기억한다.</p></div>
+    <div><img class="shot" src="img/import_mapping.jpg" alt="가져오기 열 매핑 화면"><p class="cap">가져오기: 열마다 <b>기존 변수 / 새 변수 / 날짜 / 실험명 / 메모</b>를 제안. "바인더 함량 비율"처럼 비슷한 이름은 경고와 함께 기존 변수로 맞추고, 그 이름은 별칭으로 기억한다.</p>
+      <img class="shot" src="img/s2_corr.jpg" alt="변수 간 상관 히트맵" style="margin-top:12px"><p class="cap">변수 간 상관 히트맵: 분산 시간 ↔ Haze −0.92, 바인더 함량 ↔ IR 차단율 −0.87처럼 어떤 입력이 어떤 성능과 같이 움직이는지 한눈에. 칸을 누르면 산점도로 간다.</p></div>
   </div>
   <div class="no">7</div>
 </section>
@@ -219,6 +220,16 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
 </section>
 
 <section class="slide">
+  <p class="kicker">화면 4 · 설계 (계속)</p>
+  <h2>어디까지 동시에 좋아질 수 있나, 다음엔 무엇을 실험할까</h2>
+  <div class="cols">
+    <div><img class="shot" src="img/s4_tradeoff.jpg" alt="트레이드오프 화면"><p class="cap"><b>트레이드오프</b>: "VLT 최대 · IR 차단율 최대"처럼 두 성능을 고르면 규격·고정 조건 안에서 3,000점을 예측해 한계선(파레토 전선)을 그린다. 선 위의 점은 어느 한쪽을 포기해야 다른 쪽이 좋아지는 조성이다.</p></div>
+    <div><img class="shot" src="img/s4_explore.jpg" alt="다음 실험 추천 화면"><p class="cap"><b>다음 실험 추천</b>: 규격을 지킬 것으로 보이면서 모델이 가장 자신 없는(예측 구간이 넓고 기존 실험과 먼) 조성 3개. 이 실험을 해서 넣으면 모델이 가장 많이 배운다 — 능동 학습 루프의 시작점.</p></div>
+  </div>
+  <div class="no">10</div>
+</section>
+
+<section class="slide">
   <p class="kicker">ML · 정방향</p>
   <h2>성능마다 모델을 비교해서 고르고, 점수를 그대로 보여 준다</h2>
   <div class="cols">
@@ -240,7 +251,7 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
       <p class="cap">데이터 화면의 산점도: 나노입자 함량 vs VLT. 프로젝트별로 층이 뚜렷하다 — 이것이 '제품군 효과'다. 안료 종류 같은 <b>문자열 변수</b>도 입력에 넣으면 one-hot으로 학습에 들어간다.</p>
     </div>
   </div>
-  <div class="no">10</div>
+  <div class="no">11</div>
 </section>
 
 <section class="slide">
@@ -281,7 +292,7 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
       <div class="box ok" style="margin-top:14px"><b class="t">근거가 남는다</b><p style="margin:0">"분산 시간이 Haze에 중요한 것 같다"는 감이, 데이터로 "Haze 변동의 92%는 분산 시간"이라는 근거가 된다. 중요도는 변수를 섞었을 때 예측이 얼마나 나빠지는지로 잰 값(permutation importance).</p></div>
     </div>
   </div>
-  <div class="no">11</div>
+  <div class="no">12</div>
 </section>
 
 <section class="slide">
@@ -309,7 +320,7 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
       </ul>
     </div>
   </div>
-  <div class="no">12</div>
+  <div class="no">13</div>
 </section>
 
 <section class="slide">
@@ -323,7 +334,7 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
     <div class="box"><b class="t">점검 · 제외</b><p>중앙값과 크게 다른 값(예: 건조 온도 1050 ℃)은 노란 칸으로 표시. '제외'하면 학습과 탐색 범위에서 빠진다.</p></div>
     <div class="box"><b class="t">가장 비슷한 과거 실험</b><p>예측 옆에 실제 실험을 같이 보여 줘서 "모델 말"과 "실제 결과"를 바로 대조할 수 있다.</p></div>
   </div>
-  <div class="no">13</div>
+  <div class="no">14</div>
 </section>
 
 <section class="slide">
@@ -336,9 +347,9 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
     <tr><td>역설계 유효성</td><td>추천 조성이 규격을 만족하고 모든 변수가 데이터 범위 안</td><td>테스트로 검증(고정 변수 유지, 범위 안, 규격 만족). 불가능한 규격은 "없음"으로 응답</td><td><span class="chip ok">달성</span></td></tr>
     <tr><td>사용성</td><td>실험 1건 입력 ≤ 1분, 예측·설계 ≤ 3초, 화면 ≤ 4개</td><td>표 안 즉시 저장 · 예측 &lt; 1초, 설계 약 1초 · 화면 4개 (학습만 약 8초)</td><td><span class="chip ok">달성</span></td></tr>
     <tr><td>투명성</td><td>모든 예측에 점수·건수·범위 밖 경고</td><td>카드마다 모델·R²·MAE, 상단에 학습 건수·시각, 경고 띠</td><td><span class="chip ok">달성</span></td></tr>
-    <tr><td>검증</td><td>자동 테스트</td><td>단위·API 테스트 17개 통과 (<code>python -m unittest</code>)</td><td><span class="chip ok">달성</span></td></tr>
+    <tr><td>검증</td><td>자동 테스트</td><td>단위·API 테스트 23개 통과 (<code>python -m unittest</code>)</td><td><span class="chip ok">달성</span></td></tr>
   </table>
-  <div class="no">14</div>
+  <div class="no">15</div>
 </section>
 
 <section class="slide">
@@ -357,11 +368,11 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
         <li><b>실제 데이터 투입</b>: 진행 중인 프로젝트 2~3개의 엑셀을 가져와 R²를 확인하고, 열 이름 별칭을 다듬는다.</li>
         <li><b>데이터 탐색 강화</b>: 산점도에 규격선·추세선, 변수 간 상관 히트맵.</li>
         <li><b>실험 추천 루프</b>: 설계 후보 → 실험 등록 → 측정 입력 → 재학습을 주간 루틴으로. 후보 중 '불확실성이 큰 것'을 우선 실험하는 옵션.</li>
-        <li><b>실험 추천 루프 고도화</b>: 불확실성이 큰 영역을 우선 실험하는 능동 학습(active learning) 옵션.</li>
+        <li><b>실험 추천 루프 운영</b>: 매주 "추천 → 실험 → 입력 → 재학습"을 돌리며 R² 변화를 기록한다.</li>
         <li><b>공유</b>: 사내 서버 한 대에 올려 <code>--lan</code>으로 팀 전체가 같은 데이터를 본다.</li>
       </ul></div>
   </div>
-  <div class="no">15</div>
+  <div class="no">16</div>
 </section>
 
 <section class="slide">
@@ -385,7 +396,7 @@ code{font-family:var(--mono);font-size:13.5px;background:#f4f6f8;padding:1px 6px
         <li>저장소: github.com/jgi0117/Laboratory_Dashboard (branch <code>feature/v2-ml-platform</code>)</li>
       </ul></div>
   </div>
-  <div class="no">16</div>
+  <div class="no">17</div>
 </section>
 
 </div>
