@@ -186,7 +186,7 @@ async function api(path,method="GET",body){
   if(!r.ok){throw new Error(j.error||("오류 "+r.status))}
   return j;
 }
-async function load(){D=await api("/api/data");render()}
+async function load(){D=await api("/api/data");render();if(D.ml&&D.ml.training&&!busy)watchTrain()}
 async function mutate(path,method,body,msg){
   try{const r=await api(path,method,body);await load();if(msg)toast(msg);return r}
   catch(e){toast(e.message,4000);throw e}
@@ -224,6 +224,7 @@ const checkMap=()=>{const m={};(D.checks||[]).forEach(c=>{m[c.exp+"|"+c.var]=c})
 
 // ====================== 렌더 ======================
 function render(){if(!D)return;
+  try{sessionStorage.setItem("lab.ui",JSON.stringify({screen,sel}))}catch(e){}
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.s===screen));
   const ml=D.ml||{};
   $("status").innerHTML=(D.readonly?`<span class="chip warn">읽기 전용</span>`:"")+
@@ -340,7 +341,7 @@ async function newVariableDlg(init={}){
   return r.variable;
 }
 function goPred(pid){state.pred.project=pid;state.pred.result=null;screen="pred";render();window.scrollTo(0,0)}
-function goDesign(pid){state.design.project=pid;state.design.specs=(P(pid)?.specs||[]).map(s=>({...s}));state.design.result=null;screen="design";render();window.scrollTo(0,0)}
+function goDesign(pid){state.design.project=pid;state.design.specs=(P(pid)?.specs||[]).map(s=>({...s}));state.design.result=null;state.design.pareto=null;screen="design";render();window.scrollTo(0,0)}
 
 // ---------- 가져오기 ----------
 function pasteDlg(pid){
@@ -447,7 +448,7 @@ function mlBar(){
   return `<div class="card" style="margin-bottom:14px"><div class="row">
     <div class="grow"><b>모델</b> ${ml.trained?`<span class="muted">학습 ${esc(ml.trained_at)} · 실험 ${ml.n_rows}건 · 성능 ${okT.length}개 · 입력 ${(ml.features||[]).length}개 + 제품군</span>`:`<span class="muted">아직 학습하지 않았어요</span>`}
       ${ml.stale?`<span class="chip warn" style="margin-left:6px">데이터가 바뀌었어요 → 다시 학습</span>`:""}</div>
-    <button class="p" id="trainBtn" onclick="train()" ${busy?"disabled":""}>${busy?'<span class="spin"></span>학습 중':(ml.trained?"다시 학습":"학습")}</button>
+    <button class="p" id="trainBtn" onclick="train()" ${busy||ml.training?"disabled":""}>${busy||ml.training?'<span class="spin"></span>학습 중':(ml.trained?"다시 학습":"학습")}</button>
     ${ml.trained?`<button onclick="state.pred.showModel=!state.pred.showModel;render()">${state.pred.showModel?"모델 상세 닫기":"모델 상세"}</button>`:""}</div>
     ${(ml.notes||[]).map(n=>`<div class="help">${esc(n)}</div>`).join("")}
     ${ml.trained&&state.pred.showModel?modelDetail(ml):""}</div>`;
@@ -459,7 +460,9 @@ function modelDetail(ml){
       <td class="muted">${Object.entries(t.importance).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${esc(fl.find(f=>f.id===k)?.name||k)} ${(v*100).toFixed(0)}%`).join(" · ")}</td></tr>`:`<tr><td>${esc(t.name)}</td><td colspan="6" class="muted">${esc(t.reason)}</td></tr>`).join("")}</table></div>
     <p class="help">R²는 모델이 성능의 변동을 얼마나 설명하는지(1이 최고)예요. 5-fold 교차검증: 데이터를 5조각으로 나눠 4조각으로 학습하고 나머지 1조각을 맞혀 본 점수라 과장이 적어요. MAE는 평균 오차(같은 단위). 중요 변수는 그 변수를 섞었을 때 예측이 얼마나 나빠지는지로 잰 값이에요.</p>`;
 }
-async function train(){if(busy)return;busy=true;render();try{const r=await api("/api/ml/train","POST",{});toast(`학습 완료 (${r.seconds}초)`);}catch(e){toast(e.message,5000)}busy=false;await load()}
+async function train(){if(busy)return;try{await api("/api/ml/train","POST",{})}catch(e){return toast(e.message,5000)}await watchTrain()}
+async function watchTrain(){busy=true;render();let st=null;try{do{await new Promise(r=>setTimeout(r,800));st=await api("/api/ml/status")}while(st.training)}catch(e){toast(e.message,5000)}
+  busy=false;if(st){if(st.train_error)toast("학습 실패: "+st.train_error,6000);else toast(`학습 완료 (${st.train_seconds}초)`)}await load()}
 function predScreen(){
   const ml=D.ml||{};const s=state.pred;
   const feats=ml.features||[];
@@ -542,8 +545,42 @@ function designScreen(){
       <div class="frm">${feats.map(f=>`<div><label class="lock"><input type="checkbox" ${f.id in s.fixed?"checked":""} onchange="toggleFixed('${f.id}',this.checked,${f.median})"><span style="color:var(--${KCLS[f.kind]});font-weight:600;font-size:12px">${esc(f.name)}</span></label><input type="number" step="any" ${f.id in s.fixed?"":"disabled"} value="${esc(s.fixed[f.id]??"")}" placeholder="${fmt(f.median,f.decimals)}" oninput="state.design.fixed['${f.id}']=this.value"><div class="rng">${fmt(f.min,f.decimals)}~${fmt(f.max,f.decimals)}</div></div>`).join("")}${(ml.categoricals||[]).map(c=>`<div><label class="lock"><input type="checkbox" ${c.id in s.fixed?"checked":""} onchange="toggleFixedCat('${c.id}',this.checked,this.nextElementSibling)"><span style="color:var(--${KCLS[c.kind]});font-weight:600;font-size:12px">${esc(c.name)}</span></label><select ${c.id in s.fixed?"":"disabled"} onchange="state.design.fixed['${c.id}']=this.value">${c.levels.map(l=>`<option ${s.fixed[c.id]===l?"selected":""}>${esc(l)}</option>`).join("")}</select><div class="rng">${c.levels.length}가지 중 하나로 고정</div></div>`).join("")}</div>
       <div class="row" style="margin-top:14px"><button class="p" onclick="design()" ${busy?"disabled":""}>${busy?'<span class="spin"></span>찾는 중':"조성 후보 찾기"}</button><span class="help">데이터 범위 안에서 2,000점을 탐색해요</span></div>`:`<div class="empty" style="margin-top:12px">먼저 '학습'을 눌러 주세요</div>`}
     </div>
-    <div>${s.result?designResult(s.result):`<div class="card"><div class="empty">규격을 넣고 '조성 후보 찾기'를 누르면 추천 조성이 여기에 나와요.</div></div>`}</div></div>`;
+    <div>${s.result?designResult(s.result):`<div class="card"><div class="empty">규격을 넣고 '조성 후보 찾기'를 누르면 추천 조성이 여기에 나와요.</div></div>`}</div></div>
+  ${feats.length?tradeoffCard():""}`;
 }
+function tradeoffCard(){const s=state.design;const ml=D.ml;const tvs=targets().filter(t=>(ml.targets||[]).some(x=>x.id===t.id&&x.ok));
+  if(!s.oa||!V(s.oa))s.oa=(tvs[0]||{}).id;
+  if(!s.ob||!V(s.ob)){const hz=tvs.find(t=>/haze|헤이즈|색차|편차/i.test(t.name)&&t.id!==s.oa);s.ob=(hz||tvs.find(t=>t.id!==s.oa)||tvs[0]||{}).id;s.db=hz?"min":"max"}
+  s.da=s.da||"max";s.db=s.db||"max";
+  const sel=(k,v)=>`<select style="width:auto;flex:1" onchange="state.design.${k}=this.value;state.design.pareto=null;render()">${tvs.map(t=>`<option value="${t.id}" ${v===t.id?"selected":""}>${esc(label(t))}</option>`).join("")}</select>`;
+  const dir=(k,v)=>`<select style="width:auto" onchange="state.design.${k}=this.value;state.design.pareto=null;render()"><option value="max" ${v==="max"?"selected":""}>최대</option><option value="min" ${v==="min"?"selected":""}>최소</option></select>`;
+  return `<div class="card" style="margin-top:14px"><h2>트레이드오프<small>두 성능을 동시에 좋게 할 수 있는 한계선 (위의 규격·고정 조건을 그대로 적용)</small></h2>
+    <div class="row">${sel("oa",s.oa)}${dir("da",s.da)}<span class="muted">vs</span>${sel("ob",s.ob)}${dir("db",s.db)}<button class="p" onclick="pareto()" ${busy?"disabled":""}>경계 찾기</button></div>
+    ${s.pareto?paretoResult(s.pareto):`<p class="help" style="margin-top:8px">예: VLT는 최대, Haze는 최소. 데이터 범위 안 3,000점을 예측해서 '한쪽을 더 좋게 하려면 다른 쪽을 포기해야 하는' 점들만 골라 보여 줘요.</p>`}</div>`}
+async function pareto(){const s=state.design;if(s.oa===s.ob)return toast("서로 다른 두 성능을 고르세요");busy=true;render();
+  try{s.pareto=await api("/api/ml/pareto","POST",{objectives:[{var:s.oa,dir:s.da},{var:s.ob,dir:s.db}],specs:s.specs,fixed:s.fixed,project:s.project||null})}catch(e){toast(e.message,4000)}busy=false;render()}
+function paretoResult(r){const s=state.design;const feats=D.ml.features||[];const cats=D.ml.categoricals||[];const a=V(s.oa),b=V(s.ob);
+  return `${r.message?`<div class="note">${esc(r.message)}</div>`:""}${r.project_warning?`<div class="note">${esc(r.project_warning)}</div>`:""}
+  <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:10px;align-items:start">
+    <div>${paretoSvg(r,a,b)}<p class="help">회색 점은 탐색한 조성들의 예측값${r.constrained?" (규격을 만족하는 것만)":""}, 색 점이 한계선(파레토 전선)이에요. 한계선 위의 점은 서로 '어느 한쪽을 포기해야 다른 쪽이 좋아지는' 관계예요.</p></div>
+    <div class="twrap" style="max-height:360px"><table style="min-width:0"><tr><th>#</th><th class="num">${esc(a.name)}</th><th class="num">${esc(b.name)}</th>${feats.map(f=>`<th class="num ${KCLS[f.kind]}">${esc(f.name)}</th>`).join("")}${cats.map(c=>`<th class="${KCLS[c.kind]}">${esc(c.name)}</th>`).join("")}<th></th></tr>
+      ${r.front.map((p,i)=>`<tr><td>${i+1}</td><td class="num"><b>${fmt(p.objectives[0].pred)}</b></td><td class="num"><b>${fmt(p.objectives[1].pred)}</b></td>${feats.map(f=>`<td class="num">${fmt(p.values[f.id],f.decimals)}</td>`).join("")}${cats.map(c=>`<td>${esc(p.values[c.id]??"-")}</td>`).join("")}
+        <td style="white-space:nowrap"><button class="x" onclick="toPredValues(${i})">예측</button><button class="x" onclick="registerFront(${i})">등록</button></td></tr>`).join("")}</table></div></div>`}
+function paretoSvg(r,a,b){const W=520,H=300,L=56,R=14,T=16,B=40;const all=[...r.cloud.map(c=>[c.x,c.y]),...r.front.map(p=>[p.objectives[0].pred,p.objectives[1].pred])];
+  let xmin=Math.min(...all.map(p=>p[0])),xmax=Math.max(...all.map(p=>p[0])),ymin=Math.min(...all.map(p=>p[1])),ymax=Math.max(...all.map(p=>p[1]));if(xmax===xmin){xmin-=1;xmax+=1}if(ymax===ymin){ymin-=1;ymax+=1}
+  const X=x=>L+(x-xmin)/(xmax-xmin)*(W-L-R),Y=y=>T+(1-(y-ymin)/(ymax-ymin))*(H-T-B);const t=n=>Array.from({length:n},(_,i)=>i/(n-1));
+  const fr=r.front.map(p=>[p.objectives[0].pred,p.objectives[1].pred]);
+  return`<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;display:block">
+    ${t(5).map(k=>{const y=ymin+k*(ymax-ymin);return`<line x1="${L}" x2="${W-R}" y1="${Y(y)}" y2="${Y(y)}" stroke="var(--line)"/><text x="${L-6}" y="${Y(y)+4}" text-anchor="end">${fmt(y)}</text>`}).join("")}
+    ${t(6).map(k=>{const x=xmin+k*(xmax-xmin);return`<text x="${X(x)}" y="${H-B+16}" text-anchor="middle">${fmt(x)}</text>`}).join("")}
+    ${r.cloud.map(c=>`<circle cx="${X(c.x).toFixed(1)}" cy="${Y(c.y).toFixed(1)}" r="2.5" fill="var(--mute)" opacity=".35"/>`).join("")}
+    <path d="${fr.map((p,i)=>`${i?"L":"M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("")}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    ${fr.map((p,i)=>`<circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="1.5"><title>#${i+1}  ${esc(a.name)} ${fmt(p[0])} · ${esc(b.name)} ${fmt(p[1])}</title></circle><text x="${(X(p[0])+7).toFixed(1)}" y="${(Y(p[1])-6).toFixed(1)}" font-size="10">${i+1}</text>`).join("")}
+    <text x="${(L+W-R)/2}" y="${H-4}" text-anchor="middle">${esc(label(a))} (${state.design.da==="max"?"최대":"최소"})</text><text x="${L}" y="${T-4}" font-weight="600">${esc(label(b))} (${state.design.db==="max"?"최대":"최소"})</text></svg>`}
+function toPredValues(i){const p=state.design.pareto.front[i];state.pred.project=state.design.project;state.pred.values={...p.values};state.pred.result=null;screen="pred";render();predict()}
+async function registerFront(i){const s=state.design;const p=s.pareto.front[i];if(!s.project)return toast("먼저 프로젝트를 고르세요");
+  const n=exps(s.project).filter(e=>e.source==="candidate").length+1;
+  await mutate("/api/experiments","POST",[{project:s.project,date:today(),label:`ML후보-${n}`,note:"트레이드오프 경계에서 고른 조성 (예측: "+p.objectives.map(o=>`${o.name} ${fmt(o.pred)}`).join(", ")+")",source:"candidate",values:p.values}],"실험으로 등록했어요")}
 function addDesignSpec(){const v=$("dsVar").value,t=$("dsTxt").value.trim();if(!v||!t)return toast("성능과 규격을 적어 주세요");if(!parseSpec(t))return toast("규격 형식을 확인하세요 (≥70, ≤1.5, 70~80, 100±5)",3500);state.design.specs.push({var:v,spec:t});render()}
 function toggleFixed(id,on,med){if(on)state.design.fixed[id]=state.design.fixed[id]??med;else delete state.design.fixed[id];render()}
 function toggleFixedCat(id,on){const c=(D.ml.categoricals||[]).find(x=>x.id===id);if(on)state.design.fixed[id]=state.design.fixed[id]??c.levels[0];else delete state.design.fixed[id];render()}
@@ -569,6 +606,7 @@ async function registerCand(i){const s=state.design;const c=s.result.candidates[
 
 // ====================== 시작 ======================
 function afterRender(){}
+try{const u=JSON.parse(sessionStorage.getItem("lab.ui")||"{}");if(u.screen)screen=u.screen;if(u.sel)sel=u.sel}catch(e){}
 load().catch(e=>{$("app").innerHTML=`<div class="empty">서버에 연결하지 못했어요. python server.py 가 켜져 있는지 확인하세요.<br>${esc(e.message)}</div>`});
 </script>
 </body>

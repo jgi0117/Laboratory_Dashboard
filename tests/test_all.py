@@ -225,6 +225,26 @@ class TestML(unittest.TestCase):
         self.assertFalse(hard["feasible"])
         self.assertTrue(hard["message"])
 
+    def test_pareto(self):
+        r = self.eng.pareto([{"var": "v0009", "dir": "max"}, {"var": "v0010", "dir": "max"}],
+                            specs=[{"var": "v0013", "spec": "≤1.5"}], fixed={"v0006": 105}, project="p0001")
+        self.assertTrue(r["constrained"])
+        json.dumps(r)                                             # 응답은 그대로 JSON이 되어야 한다
+        self.assertGreaterEqual(len(r["front"]), 3)
+        self.assertTrue(all(p["values"]["v0006"] == 105.0 for p in r["front"]))
+        xs = [p["objectives"][0]["pred"] for p in r["front"]]
+        ys = [p["objectives"][1]["pred"] for p in r["front"]]
+        self.assertEqual(xs, sorted(xs))
+        self.assertEqual(ys, sorted(ys, reverse=True))          # 한쪽이 좋아지면 다른 쪽은 나빠진다
+        self.assertTrue(all(0 <= v <= 100 for v in ys))          # % 성능은 0~100 안
+        with self.assertRaises(ml.NotTrained):
+            self.eng.pareto([{"var": "v0009", "dir": "max"}])
+
+    def test_percent_clip(self):
+        r = self.eng.predict({"v0001": 16, "v0008": 5}, project="p0001")
+        ir = next(t for t in r["targets"] if t["id"] == "v0010")
+        self.assertLessEqual(ir["pred"], 100.0)
+
     def test_sensitivity_and_cache(self):
         s = self.eng.sensitivity("v0013", "v0004", {"v0001": 12}, project="p0001")
         self.assertEqual(len(s["x"]), 25)
@@ -322,6 +342,18 @@ class TestServer(unittest.TestCase):
         self.assertEqual(st, 403)
         st, r = self.call("POST", "/api/ml/predict", {"values": {}})
         self.assertEqual(st, 400)        # 학습 전
+        st, r = self.call("POST", "/api/experiments", {"project": "p0001", "values": "이상한 형식"})
+        self.assertIn(st, (400, 500))     # 어떤 오류든 JSON으로 답한다
+        self.assertIn("error", r)
+        st, r = self.call("GET", "/api/ml/status")
+        self.assertEqual(st, 200)
+        self.assertIn("training", r)
+
+    def test_snapshot_store(self):
+        snap = Store.from_data({"version": 2, "variables": [], "projects": [], "experiments": []})
+        snap.add_project({"name": "임시"})
+        snap.save()                       # 파일이 없어도 오류 없이 무시
+        self.assertEqual(len(snap.projects()), 1)
 
 
 if __name__ == "__main__":

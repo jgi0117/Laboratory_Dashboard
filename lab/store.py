@@ -76,6 +76,17 @@ class Store:
         self.lock = threading.RLock()
         self.data = self._load()
 
+    @classmethod
+    def from_data(cls, data):
+        """파일 없이 메모리의 데이터만 감싼 Store (학습용 스냅샷). save()는 하지 않는다."""
+        obj = cls.__new__(cls)
+        obj.path = None
+        obj.lock = threading.RLock()
+        obj.data = data
+        for k in ("variables", "projects", "experiments"):
+            obj.data.setdefault(k, [])
+        return obj
+
     # ---------- 파일 ----------
     def _load(self):
         try:
@@ -104,6 +115,8 @@ class Store:
         os.replace(tmp, self.path)
 
     def save(self):
+        if self.path is None:
+            return
         with self.lock:
             self._write(self.data)
 

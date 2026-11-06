@@ -268,7 +268,11 @@ class Engine:
             if self.project_ids:
                 imps[PROJECT_KEY] = float(sum(vals[k:]))
             tot = sum(imps.values()) or 1.0
-            models[tid] = {"ok": True, "n": n, "model": est, "kind": key, "name": MODEL_NAMES[key],
+            yspan = float(yi.max() - yi.min()) or 1.0
+            clip_lo, clip_hi = float(yi.min()) - 0.15 * yspan, float(yi.max()) + 0.15 * yspan
+            if str(vmap.get(tid, {}).get("unit", "")).strip() == "%" and yi.min() >= 0 and yi.max() <= 100:
+                clip_lo, clip_hi = max(clip_lo, 0.0), min(clip_hi, 100.0)     # 퍼센트는 0~100 밖으로 나가지 않게
+            models[tid] = {"ok": True, "n": n, "model": est, "kind": key, "name": MODEL_NAMES[key], "clip": (clip_lo, clip_hi),
                            "r2": round(r2, 3), "mae": round(mae, 4), "rmse": round(rmse, 4), "resid_sd": rsd,
                            "scores": scores, "importance": {f: round(v / tot, 4) for f, v in imps.items()},
                            "y_range": (float(yi.min()), float(yi.max())), "y_sd": float(yi.std())}
@@ -329,6 +333,8 @@ class Engine:
         m = self.models[tid]
         est = m["model"]
         pred = est.predict(Xm)
+        if m.get("clip"):
+            pred = np.clip(pred, m["clip"][0], m["clip"][1])
         sd = np.full(len(Xm), m["resid_sd"])
         if m["kind"] == "rf":
             rf = est.steps[-1][1]
@@ -349,7 +355,7 @@ class Engine:
 
     def _values_of(self, row):
         """행 벡터 → {변수 id: 값} (숫자는 float, 범주형은 수준 문자열)."""
-        vals = {f: float(row[j]) for j, f in enumerate(self.features)}
+        vals = {f: round(float(row[j]), self.decimals.get(f, 2)) for j, f in enumerate(self.features)}
         k = self.n_num
         for vid, levels in self.cats:
             seg = row[k:k + len(levels)]
@@ -430,30 +436,16 @@ class Engine:
         p, sd = self._predict_matrix(Xm, target)
         return {"x": grid.tolist(), "pred": p.tolist(), "lo": (p - 1.96 * sd).tolist(), "hi": (p + 1.96 * sd).tolist()}
 
-    # ---------- 역방향 ----------
-    def inverse(self, specs, fixed=None, project=None, n=5, n_samples=2000, seed=0, prefer_known=0.3):
-        """규격을 만족하는 입력 후보 찾기.
-        specs: [{"var": 성능 id, "spec": "≥70"}], fixed: {입력 id: 값(숫자 또는 범주 수준)}, project: 제품군 효과에 쓸 프로젝트
-        점수 = 2·Σ 정규화 위반량 + 0.2·Σ 정규화 불확실성 + prefer_known·데이터와의 거리  (작을수록 좋다)"""
-        self._need()
+    # ---------- 후보 생성 (역방향·파레토 공용) ----------
+    def _sample_inputs(self, fixed, project, n_samples, rng):
+        """데이터 범위 안의 Latin Hypercube 샘플 + 실제 실험점. 반환: 전체 입력 행렬 X, (fixed_num, fixed_cat)"""
         fixed = fixed or {}
         fixed_num = {k: to_number(v) for k, v in fixed.items() if k in self.features and to_number(v) is not None}
         cat_levels = dict(self.cats)
         fixed_cat = {k: str(v).strip() for k, v in fixed.items() if k in cat_levels and _present(v) and str(v).strip() in cat_levels[k]}
-        parsed = []
-        for s in specs or []:
-            sp = dataset.parse_spec(s.get("spec"))
-            tid = s.get("var")
-            if sp and tid in self.models and self.models[tid]["ok"]:
-                parsed.append((tid, sp))
-        if not parsed:
-            raise NotTrained("규격이 없거나, 규격에 적은 성능의 모델이 없어요")
-        rng = np.random.default_rng(seed)
         nf, nc = self.n_num, self.n_cat
         lo = np.array([self.bounds[f][0] for f in self.features])
         hi = np.array([self.bounds[f][1] for f in self.features])
-        free = np.array([f not in fixed_num for f in self.features], dtype=bool)
-        onehot = np.array(self._onehot(project), dtype=float)
 
         def random_cats(m):
             blocks = []
@@ -466,23 +458,92 @@ class Engine:
                 blocks.append(B)
             return np.hstack(blocks) if blocks else np.zeros((m, 0))
 
-        def apply_fixed_cats(Cblock):
-            for vid, lv in fixed_cat.items():
-                k = self._cat_offset(vid) - nf
-                levels = cat_levels[vid]
-                Cblock[:, k:k + len(levels)] = 0.0
-                Cblock[:, k + levels.index(lv)] = 1.0
-            return Cblock
-
         U = np.empty((n_samples, nf))
         for j in range(nf):
             U[:, j] = (rng.permutation(n_samples) + rng.random(n_samples)) / n_samples
-        Xv = np.vstack([lo + U * (hi - lo), self.X[:, :nf]])          # 실제 실험점도 출발점으로
-        Xc = apply_fixed_cats(np.vstack([random_cats(n_samples), self.X[:, nf:nf + nc].copy()]))
+        Xv = np.vstack([lo + U * (hi - lo), self.X[:, :nf]])
+        Xc = np.vstack([random_cats(n_samples), self.X[:, nf:nf + nc].copy()])
+        for vid, lv in fixed_cat.items():
+            k = self._cat_offset(vid) - nf
+            levels = cat_levels[vid]
+            Xc[:, k:k + len(levels)] = 0.0
+            Xc[:, k + levels.index(lv)] = 1.0
         for j, f in enumerate(self.features):
+            Xv[:, j] = np.round(Xv[:, j], self.decimals.get(f, 2))
             if f in fixed_num:
                 Xv[:, j] = fixed_num[f]
+        onehot = np.array(self._onehot(project), dtype=float)
         X = np.hstack([Xv, Xc, np.tile(onehot, (len(Xv), 1))])
+        return X, fixed_num, fixed_cat, random_cats
+
+    def pareto(self, objectives, specs=None, fixed=None, project=None, n_samples=3000, seed=0, max_front=12):
+        """두 개 이상의 성능 사이 트레이드오프 경계(파레토 전선).
+        objectives: [{"var": 성능 id, "dir": "max"|"min"}], specs: 지켜야 할 규격(선택), fixed: 고정 입력"""
+        self._need()
+        objs = [(o["var"], -1.0 if str(o.get("dir", "max")).lower() == "max" else 1.0)
+                for o in objectives or [] if o.get("var") in self.models and self.models[o["var"]]["ok"]]
+        if len(objs) < 2:
+            raise NotTrained("비교할 성능을 두 개 이상 고르세요 (학습된 모델이 있는 성능만)")
+        parsed = []
+        for s in specs or []:
+            sp = dataset.parse_spec(s.get("spec"))
+            if sp and s.get("var") in self.models and self.models[s["var"]]["ok"]:
+                parsed.append((s["var"], sp))
+        rng = np.random.default_rng(seed)
+        X, fixed_num, fixed_cat, _ = self._sample_inputs(fixed, project, n_samples, rng)
+        preds = {tid: self._predict_matrix(X, tid) for tid in {t for t, _ in objs} | {t for t, _ in parsed}}
+        ok = np.ones(len(X), dtype=bool)
+        for tid, sp in parsed:
+            ok &= np.array([dataset.judge(sp["text"], float(v)) != "Fail" for v in preds[tid][0]])
+        constrained = bool(parsed) and bool(ok.any())
+        idx = np.where(ok)[0] if constrained else np.arange(len(X))
+        M = np.column_stack([preds[tid][0][idx] * sgn for tid, sgn in objs])      # 모두 '작을수록 좋다'로
+        # 파레토 전선: 어떤 점에도 지배당하지 않는 점
+        order = np.lexsort(M.T[::-1])
+        front = []
+        for i in order:
+            if not any(np.all(M[j] <= M[i]) and np.any(M[j] < M[i]) for j in front):
+                front.append(i)
+        front = [idx[i] for i in front]
+        # 전선이 너무 길면 첫 목표 기준으로 고르게 솎는다
+        if len(front) > max_front:
+            fv = preds[objs[0][0]][0][front]
+            keep = np.linspace(0, len(front) - 1, max_front).round().astype(int)
+            front = [front[i] for i in np.argsort(fv)[keep]]
+        vmap = {v["id"]: v for v in self.store.variables()}
+
+        def point(i):
+            return {"values": self._values_of(X[i]),
+                    "objectives": [{"id": tid, "name": vmap[tid]["name"], "unit": vmap[tid].get("unit", ""),
+                                    "pred": float(preds[tid][0][i]), "sd": float(preds[tid][1][i])} for tid, _ in objs],
+                    "specs_ok": bool(ok[i]) if parsed else None}
+        front_pts = sorted((point(i) for i in front), key=lambda p: p["objectives"][0]["pred"])
+        cloud_idx = rng.choice(len(X), size=min(400, len(X)), replace=False)
+        cloud = [{"x": float(preds[objs[0][0]][0][i]), "y": float(preds[objs[1][0]][0][i]), "ok": bool(ok[i]) if parsed else True} for i in cloud_idx]
+        return {"front": front_pts, "cloud": cloud, "constrained": constrained, "n_feasible": int(ok.sum()) if parsed else len(X),
+                "fixed": {**fixed_num, **fixed_cat}, "project_warning": self._project_warning(project),
+                "message": "" if (constrained or not parsed) else "규격을 모두 만족하는 점이 없어서 규격을 무시하고 경계를 그렸어요."}
+
+    # ---------- 역방향 ----------
+    def inverse(self, specs, fixed=None, project=None, n=5, n_samples=2000, seed=0, prefer_known=0.3):
+        """규격을 만족하는 입력 후보 찾기.
+        specs: [{"var": 성능 id, "spec": "≥70"}], fixed: {입력 id: 값(숫자 또는 범주 수준)}, project: 제품군 효과에 쓸 프로젝트
+        점수 = 2·Σ 정규화 위반량 + 0.2·Σ 정규화 불확실성 + prefer_known·데이터와의 거리  (작을수록 좋다)"""
+        self._need()
+        parsed = []
+        for s in specs or []:
+            sp = dataset.parse_spec(s.get("spec"))
+            tid = s.get("var")
+            if sp and tid in self.models and self.models[tid]["ok"]:
+                parsed.append((tid, sp))
+        if not parsed:
+            raise NotTrained("규격이 없거나, 규격에 적은 성능의 모델이 없어요")
+        rng = np.random.default_rng(seed)
+        nf, nc = self.n_num, self.n_cat
+        lo = np.array([self.bounds[f][0] for f in self.features])
+        hi = np.array([self.bounds[f][1] for f in self.features])
+        X, fixed_num, fixed_cat, random_cats = self._sample_inputs(fixed, project, n_samples, rng)
+        free = np.array([f not in fixed_num for f in self.features], dtype=bool)
         S_train = self._standardize(self.X)
 
         def score(Xm):

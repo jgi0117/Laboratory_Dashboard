@@ -8,6 +8,7 @@
 데이터는 같은 폴더의 data.json, 학습한 모델은 models.pkl 에 저장된다. 외부로 나가는 것은 없다.
 """
 import base64
+import copy
 import ipaddress
 import json
 import os
@@ -15,6 +16,8 @@ import re
 import socket
 import sys
 import threading
+import time
+import traceback
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -36,6 +39,44 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 STORE = Store(DATA)
 ENGINE = ml.Engine(STORE, MODELS)
 ML_LOCK = threading.Lock()
+TRAIN = {"running": False, "error": "", "seconds": None}
+TRAIN_LOCK = threading.Lock()
+
+
+def train_job():
+    """학습은 데이터 스냅샷으로 백그라운드에서 돌리고, 끝나면 모델만 바꿔 끼운다 (학습 중에도 조회·입력 가능)."""
+    t0 = time.time()
+    try:
+        with STORE.lock:
+            snap = Store.from_data(copy.deepcopy(STORE.data))
+        eng = ml.Engine(snap, None)
+        eng.train()
+        with ML_LOCK:
+            for k in ml.CACHE_KEYS:
+                setattr(ENGINE, k, getattr(eng, k))
+            ENGINE._save_cache()
+        TRAIN["error"] = ""
+    except Exception as e:          # 학습 실패는 상태로 알린다
+        TRAIN["error"] = str(e)
+    finally:
+        TRAIN["seconds"] = round(time.time() - t0, 1)
+        TRAIN["running"] = False
+
+
+def start_training():
+    with TRAIN_LOCK:
+        if TRAIN["running"]:
+            return {"started": False, "running": True}
+        TRAIN["running"], TRAIN["error"] = True, ""
+        threading.Thread(target=train_job, daemon=True).start()
+        return {"started": True, "running": True}
+
+
+def ml_status():
+    with ML_LOCK:
+        st = ENGINE.status()
+    st.update(training=TRAIN["running"], train_error=TRAIN["error"], train_seconds=TRAIN["seconds"])
+    return st
 
 
 # ---------- 접근 제어 (v1과 같음) ----------
@@ -60,13 +101,22 @@ def client_ok(addr):
     return a.is_loopback or (LAN and a.version == 4 and a.is_private)
 
 
+def _jsonable(o):
+    """numpy 숫자/불리언 등 json이 모르는 값을 파이썬 값으로."""
+    if hasattr(o, "item"):
+        return o.item()
+    if hasattr(o, "tolist"):
+        return o.tolist()
+    return str(o)
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
     # ---------- 응답 ----------
     def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None):
-        data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode("utf-8")
+        data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False, default=_jsonable).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
@@ -100,6 +150,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- GET ----------
     def do_GET(self):
+        try:
+            self._get()
+        except Exception as e:              # 어떤 오류든 연결을 끊지 않고 500으로 알린다
+            traceback.print_exc()
+            self._send(500, {"error": f"서버 오류: {e.__class__.__name__}: {e}"})
+
+    def _get(self):
         path, q = self._route()
         if path in ("/", "/index.html"):
             return self._send(200, (BASE / "index.html").read_bytes(), "text/html; charset=utf-8")
@@ -119,7 +176,7 @@ class Handler(BaseHTTPRequestHandler):
                     d = STORE.data
                     body = {"version": 2, "variables": d["variables"], "projects": d["projects"], "experiments": d["experiments"],
                             "summary": dataset.project_summary(STORE), "stats": dataset.var_stats(STORE),
-                            "checks": dataset.checks(STORE), "readonly": READONLY, "ml": ENGINE.status()}
+                            "checks": dataset.checks(STORE), "readonly": READONLY, "ml": ml_status()}
                 return self._send(200, body)
             if path == "/api/dataset":
                 with STORE.lock:
@@ -130,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._file(dataset.to_xlsx(head, rows), XLSX, name + ".xlsx")
                 return self._file(dataset.to_csv(head, rows), "text/csv; charset=utf-8", name + ".csv")
             if path == "/api/ml/status":
-                return self._send(200, ENGINE.status())
+                return self._send(200, ml_status())
         except StoreError as e:
             return self._send(400, {"error": str(e)})
         self._send(404, {"error": "not found"})
@@ -152,6 +209,13 @@ class Handler(BaseHTTPRequestHandler):
         self._mutate("DELETE")
 
     def _mutate(self, method):
+        try:
+            self._mutate_inner(method)
+        except Exception as e:
+            traceback.print_exc()
+            self._send(500, {"error": f"서버 오류: {e.__class__.__name__}: {e}"})
+
+    def _mutate_inner(self, method):
         path, q = self._route()
         if not path.startswith("/api/") or not self._allowed():
             return
@@ -164,8 +228,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ml/train":
                 if not self._write_guard():
                     return
-                with ML_LOCK, STORE.lock:
-                    return self._send(200, ENGINE.train())
+                return self._send(200, start_training())
+            if path == "/api/ml/pareto":
+                with ML_LOCK:
+                    return self._send(200, ENGINE.pareto(body.get("objectives") or [], body.get("specs"), body.get("fixed"), body.get("project")))
             if path == "/api/ml/predict":
                 with ML_LOCK:
                     return self._send(200, ENGINE.predict(body.get("values") or {}, body.get("specs"), body.get("project")))
@@ -193,7 +259,8 @@ class Handler(BaseHTTPRequestHandler):
         except (StoreError, ml.NotTrained, RuntimeError) as e:
             return self._send(400, {"error": str(e)})
         except (KeyError, TypeError, AttributeError) as e:
-            return self._send(400, {"error": f"요청 형식이 올바르지 않아요 ({e.__class__.__name__})"})
+            traceback.print_exc()
+            return self._send(400, {"error": f"요청 형식이 올바르지 않아요 ({e.__class__.__name__}: {e})"})
 
     def _write(self, method, path, body):
         parts = path.split("/")[2:]          # ['projects', 'p0001']
